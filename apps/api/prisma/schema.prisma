@@ -1,0 +1,332 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Dealer {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @db.VarChar(160)
+  slug      String   @unique @db.VarChar(120)
+  phone     String?  @db.VarChar(30)
+  email     String?  @db.VarChar(254)
+  status    String   @default("active") @db.VarChar(30)
+  planId    String?  @map("plan_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  dealerUsers      DealerUser[]
+  customers        Customer[]
+  customerConsents CustomerConsent[]
+  requirements     Requirement[]
+  vehicles         Vehicle[]
+  vehicleMedia     VehicleMedia[]
+  matches          Match[]
+  notifications    Notification[]
+  followups        Followup[]
+  activities       Activity[]
+  outboxEvents     OutboxEvent[]
+  auditLogs        AuditLog[]
+
+  @@map("dealers")
+}
+
+model User {
+  id         String   @id @default(uuid()) @db.Uuid
+  name       String   @db.VarChar(160)
+  phone      String?  @db.VarChar(30)
+  email      String?  @db.VarChar(254)
+  authStatus String   @default("active") @map("auth_status") @db.VarChar(30)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  dealerUsers DealerUser[]
+  followups   Followup[]
+  activities  Activity[]
+  auditLogs   AuditLog[]
+
+  @@map("users")
+}
+
+model DealerUser {
+  dealerId  String   @map("dealer_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  role      String   @db.VarChar(30)
+  status    String   @default("active") @db.VarChar(30)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  dealer Dealer @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([dealerId, userId])
+  @@map("dealer_users")
+}
+
+model Customer {
+  id              String   @id @default(uuid()) @db.Uuid
+  dealerId        String   @map("dealer_id") @db.Uuid
+  name            String   @db.VarChar(160)
+  normalizedPhone String   @map("normalized_phone") @db.VarChar(30)
+  email           String?  @db.VarChar(254)
+  status          String   @default("active") @db.VarChar(30)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  dealer           Dealer            @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  customerConsents CustomerConsent[]
+  requirements     Requirement[]
+  notifications    Notification[]
+  followups        Followup[]
+  activities       Activity[]
+
+  @@unique([dealerId, normalizedPhone])
+  @@index([dealerId, status], name: "idx_customers_dealer_status")
+  @@map("customers")
+}
+
+model CustomerConsent {
+  id            String    @id @default(uuid()) @db.Uuid
+  dealerId      String    @map("dealer_id") @db.Uuid
+  customerId    String    @map("customer_id") @db.Uuid
+  consentType   String    @map("consent_type") @db.VarChar(50)
+  channel       String    @db.VarChar(30)
+  grantedAt     DateTime? @map("granted_at") @db.Timestamptz
+  revokedAt     DateTime? @map("revoked_at") @db.Timestamptz
+  source        String?   @db.VarChar(50)
+  policyVersion String?   @map("policy_version") @db.VarChar(30)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  dealer   Dealer   @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("customer_consents")
+}
+
+model Requirement {
+  id         String    @id @default(uuid()) @db.Uuid
+  dealerId   String    @map("dealer_id") @db.Uuid
+  customerId String    @map("customer_id") @db.Uuid
+  status     String    @default("searching") @db.VarChar(30)
+  priority   String    @default("normal") @db.VarChar(20)
+  source     String    @default("customer_portal") @db.VarChar(30)
+  notes      String?   @db.Text
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  closedAt   DateTime? @map("closed_at") @db.Timestamptz
+
+  dealer      Dealer                 @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  customer    Customer               @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  preferences RequirementPreference?
+  matches     Match[]
+  followups   Followup[]
+  activities  Activity[]
+
+  @@index([dealerId, status], name: "idx_requirements_dealer_status")
+  @@index([dealerId, customerId, status], name: "idx_req_customer_status")
+  @@map("requirements")
+}
+
+model RequirementPreference {
+  id              String   @id @default(uuid()) @db.Uuid
+  requirementId   String   @unique @map("requirement_id") @db.Uuid
+  make            String?  @db.VarChar(80)
+  model           String?  @db.VarChar(100)
+  variant         String?  @db.VarChar(120)
+  minYear         Int?     @map("min_year") @db.SmallInt
+  maxYear         Int?     @map("max_year") @db.SmallInt
+  minPrice        Decimal? @map("min_price") @db.Decimal(14, 2)
+  maxPrice        Decimal? @map("max_price") @db.Decimal(14, 2)
+  fuel            String?  @db.VarChar(30)
+  transmission    String?  @db.VarChar(30)
+  maxKm           Int?     @map("max_km")
+  locationLat     Decimal? @map("location_lat") @db.Decimal(9, 6)
+  locationLng     Decimal? @map("location_lng") @db.Decimal(9, 6)
+  radiusKm        Decimal? @map("radius_km") @db.Decimal(8, 2)
+  color           String?  @db.VarChar(50)
+  preferenceRules Json?    @map("preference_rules")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  requirement Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+
+  @@map("requirement_preferences")
+}
+
+model Vehicle {
+  id          String    @id @default(uuid()) @db.Uuid
+  dealerId    String    @map("dealer_id") @db.Uuid
+  stockNumber String    @map("stock_number") @db.VarChar(80)
+  make        String    @db.VarChar(80)
+  model       String    @db.VarChar(100)
+  variant     String?   @db.VarChar(120)
+  year        Int       @db.SmallInt
+  price       Decimal   @db.Decimal(14, 2)
+  fuel        String?   @db.VarChar(30)
+  transmission String?  @db.VarChar(30)
+  kilometers  Int?
+  locationLat Decimal?  @map("location_lat") @db.Decimal(9, 6)
+  locationLng Decimal?  @map("location_lng") @db.Decimal(9, 6)
+  status      String    @default("available") @db.VarChar(30)
+  description String?   @db.Text
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  soldAt      DateTime? @map("sold_at") @db.Timestamptz
+
+  dealer       Dealer         @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  vehicleMedia VehicleMedia[]
+  matches      Match[]
+  activities   Activity[]
+
+  @@unique([dealerId, stockNumber])
+  @@index([dealerId, status], name: "idx_vehicles_dealer_status")
+  @@index([dealerId, make, model, status], name: "idx_vehicles_dealer_model_status")
+  @@index([dealerId, price], name: "idx_vehicles_dealer_price")
+  @@map("vehicles")
+}
+
+model VehicleMedia {
+  id         String   @id @default(uuid()) @db.Uuid
+  dealerId   String   @map("dealer_id") @db.Uuid
+  vehicleId  String   @map("vehicle_id") @db.Uuid
+  storageKey String   @map("storage_key") @db.Text
+  mediaType  String   @map("media_type") @db.VarChar(30)
+  sortOrder  Int      @default(0) @map("sort_order")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  dealer  Dealer  @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@map("vehicle_media")
+}
+
+model Match {
+  id             String    @id @default(uuid()) @db.Uuid
+  dealerId       String    @map("dealer_id") @db.Uuid
+  requirementId  String    @map("requirement_id") @db.Uuid
+  vehicleId      String    @map("vehicle_id") @db.Uuid
+  score          Decimal   @db.Decimal(5, 2)
+  scoreBreakdown Json      @map("score_breakdown")
+  status         String    @default("new") @db.VarChar(30)
+  notifiedAt     DateTime? @map("notified_at") @db.Timestamptz
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  dealer        Dealer         @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  requirement   Requirement    @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  vehicle       Vehicle        @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  notifications Notification[]
+
+  @@unique([requirementId, vehicleId])
+  @@index([dealerId, requirementId], name: "idx_matches_requirement")
+  @@index([dealerId, vehicleId], name: "idx_matches_vehicle")
+  @@map("matches")
+}
+
+model Notification {
+  id                String    @id @default(uuid()) @db.Uuid
+  dealerId          String    @map("dealer_id") @db.Uuid
+  customerId        String    @map("customer_id") @db.Uuid
+  matchId           String?   @map("match_id") @db.Uuid
+  channel           String    @db.VarChar(30)
+  type              String    @db.VarChar(50)
+  providerMessageId String?   @map("provider_message_id") @db.VarChar(200)
+  status            String    @default("queued") @db.VarChar(30)
+  idempotencyKey    String    @unique @map("idempotency_key") @db.VarChar(255)
+  attempts          Int       @default(0)
+  scheduledAt       DateTime? @map("scheduled_at") @db.Timestamptz
+  sentAt            DateTime? @map("sent_at") @db.Timestamptz
+  deliveredAt       DateTime? @map("delivered_at") @db.Timestamptz
+  readAt            DateTime? @map("read_at") @db.Timestamptz
+  failedAt          DateTime? @map("failed_at") @db.Timestamptz
+  failureReason     String?   @map("failure_reason") @db.Text
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  dealer   Dealer   @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  match    Match?   @relation(fields: [matchId], references: [id], onDelete: SetNull)
+
+  @@index([dealerId, customerId, createdAt(sort: Desc)], name: "idx_notifications_customer")
+  @@map("notifications")
+}
+
+model Followup {
+  id             String    @id @default(uuid()) @db.Uuid
+  dealerId       String    @map("dealer_id") @db.Uuid
+  customerId     String    @map("customer_id") @db.Uuid
+  requirementId  String?   @map("requirement_id") @db.Uuid
+  assignedUserId String?   @map("assigned_user_id") @db.Uuid
+  type           String    @db.VarChar(40)
+  dueAt          DateTime  @map("due_at") @db.Timestamptz
+  status         String    @default("open") @db.VarChar(30)
+  notes          String?   @db.Text
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  dealer       Dealer       @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  requirement  Requirement? @relation(fields: [requirementId], references: [id], onDelete: SetNull)
+  assignedUser User?        @relation(fields: [assignedUserId], references: [id], onDelete: SetNull)
+
+  @@index([dealerId, status, dueAt], name: "idx_followups_due")
+  @@map("followups")
+}
+
+model Activity {
+  id            String   @id @default(uuid()) @db.Uuid
+  dealerId      String   @map("dealer_id") @db.Uuid
+  customerId    String?  @map("customer_id") @db.Uuid
+  requirementId String?  @map("requirement_id") @db.Uuid
+  vehicleId     String?  @map("vehicle_id") @db.Uuid
+  userId        String?  @map("user_id") @db.Uuid
+  activityType  String   @map("activity_type") @db.VarChar(60)
+  metadata      Json?
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  dealer      Dealer       @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  customer    Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  requirement Requirement? @relation(fields: [requirementId], references: [id], onDelete: SetNull)
+  vehicle     Vehicle?     @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  user        User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("activities")
+}
+
+model OutboxEvent {
+  id            String    @id @default(uuid()) @db.Uuid
+  dealerId      String?   @map("dealer_id") @db.Uuid
+  eventType     String    @map("event_type") @db.VarChar(100)
+  aggregateType String    @map("aggregate_type") @db.VarChar(50)
+  aggregateId   String    @map("aggregate_id") @db.Uuid
+  payload       Json
+  status        String    @default("pending") @db.VarChar(30)
+  attempts      Int       @default(0)
+  availableAt   DateTime  @default(now()) @map("available_at") @db.Timestamptz
+  processedAt   DateTime? @map("processed_at") @db.Timestamptz
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  dealer Dealer? @relation(fields: [dealerId], references: [id], onDelete: SetNull)
+
+  @@index([status, availableAt], name: "idx_outbox_pending")
+  @@map("outbox_events")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  dealerId   String?  @map("dealer_id") @db.Uuid
+  userId     String?  @map("user_id") @db.Uuid
+  action     String   @db.VarChar(80)
+  entityType String   @map("entity_type") @db.VarChar(60)
+  entityId   String?  @map("entity_id") @db.Uuid
+  metadata   Json?
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent") @db.Text
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  dealer Dealer? @relation(fields: [dealerId], references: [id], onDelete: SetNull)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
+}

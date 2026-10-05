@@ -1,0 +1,38 @@
+{
+  "name": "used-car-platform-implementation-pack",
+  "version": "1.0",
+  "documents": [
+    "00_IMPLEMENTATION_README.md",
+    "01_ERD.md",
+    "02_RBAC_AND_TENANCY.md",
+    "03_SCREEN_SPEC.md",
+    "04_API_CONTRACTS.md",
+    "05_EVENT_CATALOG.md",
+    "06_SEQUENCE_DIAGRAMS.md",
+    "07_MATCHING_RULES.md",
+    "08_WHATSAPP_SPEC.md",
+    "09_DEVELOPER_TICKETS.md",
+    "10_ACCEPTANCE_CRITERIA.md",
+    "11_OPEN_DECISIONS.md",
+    "12_DEV_HANDOFF_CHECKLIST.md",
+    "13_ENVIRONMENT_VARIABLES.md",
+    "14_FOLDER_STRUCTURE.md",
+    "15_SAMPLE_SEED_DATA.md",
+    "16_RELEASE_PLAN.md"
+  ],
+  "ready_for": [
+    "product review",
+    "UX design",
+    "backend implementation",
+    "frontend implementation",
+    "QA planning"
+  ],
+  "core_architecture": {
+    "database": "PostgreSQL",
+    "tenant_model": "single database, dealer_id tenant isolation",
+    "backend": "modular monolith",
+    "async": "Redis + queue + outbox",
+    "customer": "dealer-specific web portal + OTP",
+    "notifications": "WhatsApp provider abstraction"
+  }
+}

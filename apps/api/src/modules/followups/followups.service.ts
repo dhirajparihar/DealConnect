@@ -55,7 +55,7 @@ export class FollowupsService {
       orderBy: { dueAt: 'asc' },
     });
 
-    return list.map((f) => ({
+    return list.map((f: any) => ({
       ...f,
       status: f.status as FollowupStatus,
       type: f.type as FollowupType,

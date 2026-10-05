@@ -28,7 +28,7 @@ export class RequirementsService {
   ): Promise<Requirement> {
     const dealerId = requireDealerId();
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: any) => {
       const requirement = await tx.requirement.create({
         data: {
           dealerId,
@@ -111,7 +111,7 @@ export class RequirementsService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return requirements.map((r) => ({
+    return requirements.map((r: any) => ({
       ...r,
       status: r.status as RequirementStatus,
       priority: r.priority as RequirementPriority,
@@ -144,7 +144,7 @@ export class RequirementsService {
       throw new ApiError(404, 'REQUIREMENT_NOT_FOUND', 'Requirement not found.');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: any) => {
       const isClosed = newStatus === RequirementStatus.CLOSED || newStatus === RequirementStatus.PURCHASED_ELSEWHERE;
 
       const updated = await tx.requirement.update({

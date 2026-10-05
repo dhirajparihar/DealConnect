@@ -81,7 +81,7 @@ export class CustomersService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return customers.map((c) => ({
+    return customers.map((c: any) => ({
       ...c,
       status: c.status as CustomerStatus,
     }));

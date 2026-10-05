@@ -55,7 +55,7 @@ export function createMatchingRouter(matchingService: MatchingService, prisma: P
         throw new Error('Match record not found.');
       }
 
-      const result = await prisma.$transaction(async (tx) => {
+      const result = await prisma.$transaction(async (tx: any) => {
         // Update match status to INTERESTED
         const updatedMatch = await tx.match.update({
           where: { id: matchId },

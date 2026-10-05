@@ -22,7 +22,7 @@ export class PrismaService extends PrismaClient {
    */
   public async executeWithRls<T>(fn: (prisma: PrismaClient) => Promise<T>): Promise<T> {
     const context = getTenantContext();
-    return this.$transaction(async (tx) => {
+    return this.$transaction(async (tx: any) => {
       if (context?.dealerId) {
         await tx.$executeRawUnsafe(`SET LOCAL app.current_dealer_id = '${context.dealerId}';`);
       }

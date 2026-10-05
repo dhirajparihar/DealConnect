@@ -40,7 +40,7 @@ export class VehiclesService {
       throw new ApiError(409, 'STOCK_NUMBER_EXISTS', `Vehicle stock number '${data.stockNumber}' already exists for this dealer.`);
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: any) => {
       const vehicle = await tx.vehicle.create({
         data: {
           dealerId,
@@ -109,7 +109,7 @@ export class VehiclesService {
       status: vehicle.status as VehicleStatus,
       fuel: vehicle.fuel as FuelType | null,
       transmission: vehicle.transmission as TransmissionType | null,
-      media: vehicle.vehicleMedia.map((m) => ({
+      media: vehicle.vehicleMedia.map((m: any) => ({
         ...m,
         url: this.storageService.getPublicUrl(m.storageKey),
       })),
@@ -154,13 +154,13 @@ export class VehiclesService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return vehicles.map((v) => ({
+    return vehicles.map((v: any) => ({
       ...v,
       price: Number(v.price),
       status: v.status as VehicleStatus,
       fuel: v.fuel as FuelType | null,
       transmission: v.transmission as TransmissionType | null,
-      media: v.vehicleMedia.map((m) => ({
+      media: v.vehicleMedia.map((m: any) => ({
         ...m,
         url: this.storageService.getPublicUrl(m.storageKey),
       })),
@@ -171,7 +171,7 @@ export class VehiclesService {
     const dealerId = requireDealerId();
     const existing = await this.getVehicleById(vehicleId);
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: any) => {
       const isSold = newStatus === VehicleStatus.SOLD;
 
       const updated = await tx.vehicle.update({

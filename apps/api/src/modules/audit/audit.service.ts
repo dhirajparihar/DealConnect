@@ -13,7 +13,7 @@ export class AuditService {
         action,
         entityType,
         entityId: entityId || null,
-        metadata: metadata || null,
+        metadata: metadata ? (metadata as any) : undefined,
         ipAddress: ipAddress || null,
         userAgent: userAgent || null,
       },

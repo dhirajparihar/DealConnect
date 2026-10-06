@@ -85,10 +85,12 @@ export class VehiclesService {
       return {
         ...vehicle,
         price: Number(vehicle.price),
+        locationLat: vehicle.locationLat ? Number(vehicle.locationLat) : null,
+        locationLng: vehicle.locationLng ? Number(vehicle.locationLng) : null,
         status: vehicle.status as VehicleStatus,
         fuel: vehicle.fuel as FuelType | null,
         transmission: vehicle.transmission as TransmissionType | null,
-      };
+      } as any as Vehicle;
     });
   }
 
@@ -106,6 +108,8 @@ export class VehiclesService {
     return {
       ...vehicle,
       price: Number(vehicle.price),
+      locationLat: vehicle.locationLat ? Number(vehicle.locationLat) : null,
+      locationLng: vehicle.locationLng ? Number(vehicle.locationLng) : null,
       status: vehicle.status as VehicleStatus,
       fuel: vehicle.fuel as FuelType | null,
       transmission: vehicle.transmission as TransmissionType | null,
@@ -113,7 +117,7 @@ export class VehiclesService {
         ...m,
         url: this.storageService.getPublicUrl(m.storageKey),
       })),
-    };
+    } as any as Vehicle;
   }
 
   async searchVehicles(filters?: {

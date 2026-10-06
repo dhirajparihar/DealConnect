@@ -5,11 +5,12 @@
   "main": "dist/main.js",
   "scripts": {
     "build": "npm run build --workspace=@dealconnect/shared-types && npm run build --workspace=@dealconnect/validation && tsc",
-    "dev": "ts-node-dev --respawn --transpile-only src/main.ts",
+    "dev": "ts-node-dev --respawn --transpile-only --prefer-ts-exts src/main.ts",
     "start": "node dist/main.js",
     "test": "jest --passWithNoTests",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {
     "@dealconnect/shared-types": "*",

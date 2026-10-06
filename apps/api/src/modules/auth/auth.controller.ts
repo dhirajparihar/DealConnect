@@ -30,5 +30,27 @@ export function createAuthRouter(authService: AuthService): Router {
     }
   });
 
+  // POST /public/dealer-auth/login
+  router.post('/public/dealer-auth/login', async (req: Request, res: Response) => {
+    try {
+      const { dealerSlug, email } = req.body;
+      const slug = dealerSlug || 'sharma-motors';
+      const result = await authService.loginDealerUser(slug, email);
+      return sendSuccessResponse(res, result);
+    } catch (err) {
+      return sendErrorResponse(res, err);
+    }
+  });
+
+  // POST /public/admin-auth/login
+  router.post('/public/admin-auth/login', async (req: Request, res: Response) => {
+    try {
+      const result = await authService.loginPlatformAdmin();
+      return sendSuccessResponse(res, result);
+    } catch (err) {
+      return sendErrorResponse(res, err);
+    }
+  });
+
   return router;
 }

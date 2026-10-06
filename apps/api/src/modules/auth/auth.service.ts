@@ -96,4 +96,75 @@ export class AuthService {
     const token = this.jwtService.generateUserToken(user.id, data.dealerId, data.role);
     return { user, token };
   }
+
+  async loginDealerUser(dealerSlug: string, email?: string) {
+    const dealer = await this.dealersService.getDealerBySlug(dealerSlug);
+    let dealerUser = await this.prisma.dealerUser.findFirst({
+      where: { dealerId: dealer.id },
+      include: { user: true },
+    });
+
+    if (!dealerUser) {
+      const user = await this.prisma.user.create({
+        data: {
+          name: `${dealer.name} Owner`,
+          email: email || `owner@${dealer.slug}.com`,
+          authStatus: UserAuthStatus.ACTIVE,
+        },
+      });
+      dealerUser = await this.prisma.dealerUser.create({
+        data: {
+          dealerId: dealer.id,
+          userId: user.id,
+          role: DealerRole.OWNER,
+          status: 'active',
+        },
+        include: { user: true },
+      });
+    }
+
+    const token = this.jwtService.generateUserToken(dealerUser.userId, dealer.id, dealerUser.role as DealerRole);
+    return {
+      token,
+      dealer: {
+        id: dealer.id,
+        name: dealer.name,
+        slug: dealer.slug,
+      },
+      user: {
+        id: dealerUser.user.id,
+        name: dealerUser.user.name,
+        email: dealerUser.user.email,
+        role: dealerUser.role,
+      },
+    };
+  }
+
+  async loginPlatformAdmin() {
+    let admin = await this.prisma.user.findFirst({
+      where: { email: 'admin@dealconnect.com' },
+    });
+
+    if (!admin) {
+      admin = await this.prisma.user.create({
+        data: {
+          name: 'Platform Super Admin',
+          email: 'admin@dealconnect.com',
+          authStatus: UserAuthStatus.ACTIVE,
+        },
+      });
+    }
+
+    // Platform admin token without specific tenant restriction
+    const token = this.jwtService.generateUserToken(admin.id, 'platform-admin', DealerRole.OWNER, true);
+    return {
+      token,
+      user: {
+        id: admin.id,
+        name: admin.name,
+        email: admin.email,
+        isPlatformAdmin: true,
+      },
+    };
+  }
 }

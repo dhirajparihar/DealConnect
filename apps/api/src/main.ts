@@ -32,6 +32,7 @@ import { createRequirementRouter } from './modules/requirements/requirements.con
 import { createVehicleRouter } from './modules/vehicles/vehicles.controller.js';
 import { createMatchingRouter } from './modules/matching/matching.controller.js';
 import { createWebhookRouter } from './modules/notifications/webhooks.controller.js';
+import { createDashboardRouter } from './modules/dashboard/dashboard.controller.js';
 
 dotenv.config();
 
@@ -100,6 +101,7 @@ export function createApp() {
   app.use('/api/v1', createVehicleRouter(vehiclesService, storageService));
   app.use('/api/v1', createMatchingRouter(matchingService, prisma));
   app.use('/api/v1', createWebhookRouter(notificationsService, messagingProvider));
+  app.use('/api/v1', createDashboardRouter(dashboardService));
 
   return app;
 }

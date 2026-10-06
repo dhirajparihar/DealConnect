@@ -8,6 +8,22 @@ import crypto from 'crypto';
 export function createWebhookRouter(notificationsService: NotificationsService, messagingProvider: MessagingProvider): Router {
   const router = Router();
 
+  // GET /webhooks/whatsapp (Meta Webhook Verification)
+  router.get('/webhooks/whatsapp', (req: Request, res: Response) => {
+    const mode = req.query['hub.mode'];
+    const token = req.query['hub.verify_token'];
+    const challenge = req.query['hub.challenge'];
+
+    const expectedToken = process.env.WHATSAPP_WEBHOOK_SECRET;
+
+    if (mode === 'subscribe' && token === expectedToken) {
+      // Respond with the challenge to verify the webhook
+      res.status(200).send(challenge);
+    } else {
+      res.sendStatus(403);
+    }
+  });
+
   // POST /webhooks/whatsapp
   router.post('/webhooks/whatsapp', async (req: Request, res: Response, next: NextFunction) => {
     try {

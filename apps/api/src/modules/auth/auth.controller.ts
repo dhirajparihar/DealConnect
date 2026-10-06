@@ -33,7 +33,7 @@ export function createAuthRouter(authService: AuthService): Router {
       const { dealerSlug } = req.params;
       const parsed = OtpVerifySchema.parse(req.body);
       const result = await authService.verifyCustomerOtp(dealerSlug, parsed.challengeId, parsed.otp);
-      if (result.token) setAuthCookie(res, result.token);
+      if (result.sessionToken) setAuthCookie(res, result.sessionToken);
       return sendSuccessResponse(res, result);
     } catch (err) {
       return sendErrorResponse(res, err);

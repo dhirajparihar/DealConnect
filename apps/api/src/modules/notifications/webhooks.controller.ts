@@ -26,7 +26,7 @@ export function createWebhookRouter(notificationsService: NotificationsService, 
         const idempotencyKey = `webhook:whatsapp:${event.providerMessageId}:${eventHash}`;
         
         // Use SET NX to acquire an atomic lock / idempotency check
-        const isNew = await redisClient.set(idempotencyKey, '1', 'NX', 'EX', 7 * 24 * 60 * 60);
+        const isNew = await redisClient.set(idempotencyKey, '1', 'EX', 7 * 24 * 60 * 60, 'NX');
         
         if (isNew) {
           await notificationsService.handleWebhookStatusUpdate(event.providerMessageId, event.status, event.failureReason);

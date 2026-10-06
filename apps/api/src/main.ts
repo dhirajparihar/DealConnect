@@ -62,7 +62,7 @@ export function createApp() {
     standardHeaders: true,
     legacyHeaders: false,
     store: new RedisStore({
-      sendCommand: (...args: string[]) => redisClient.call(...args),
+      sendCommand: ((...args: string[]) => redisClient.call(args[0], ...args.slice(1))) as any,
     }),
     message: { error: { code: 'RATE_LIMIT_EXCEEDED', message: 'Too many requests from this IP.' } },
   });

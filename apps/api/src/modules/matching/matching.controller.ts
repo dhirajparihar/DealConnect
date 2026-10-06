@@ -87,7 +87,7 @@ export function createMatchingRouter(matchingService: MatchingService, prisma: P
         throw new Error('Match record not found.');
       }
 
-      if (match.status === MatchStatus.INTERESTED || match.status === MatchStatus.CONTACTED) {
+      if (match.status === MatchStatus.INTERESTED) {
         return sendSuccessResponse(res, {
           status: match.status,
           followupCreated: false,

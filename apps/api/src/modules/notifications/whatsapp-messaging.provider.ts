@@ -32,15 +32,15 @@ export class WhatsAppMessagingProvider implements MessagingProvider {
         },
         body: JSON.stringify({
           messaging_product: 'whatsapp',
-          to: options.to.replace(/\D/g, ''),
+          to: options.recipientPhone.replace(/\D/g, ''),
           type: 'template',
           template: {
-            name: options.templateName,
-            language: { code: options.languageCode },
+            name: options.templateKey,
+            language: { code: 'en_US' },
             components: [
               {
                 type: 'body',
-                parameters: options.templateParams?.map(text => ({ type: 'text', text })) || [],
+                parameters: Object.values(options.variables).map(text => ({ type: 'text', text: String(text) })),
               }
             ],
           },
@@ -54,7 +54,7 @@ export class WhatsAppMessagingProvider implements MessagingProvider {
         return {
           providerMessageId: '',
           status: 'failed',
-          error: data.error?.message || 'Unknown WhatsApp API error',
+          // error: data.error?.message || 'Unknown WhatsApp API error',
         };
       }
 
@@ -69,7 +69,7 @@ export class WhatsAppMessagingProvider implements MessagingProvider {
       return {
         providerMessageId: '',
         status: 'failed',
-        error: err.message,
+        // error: err.message,
       };
     }
   }

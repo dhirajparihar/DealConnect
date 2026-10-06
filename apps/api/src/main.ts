@@ -2,11 +2,14 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import { RedisStore } from 'rate-limit-redis';
+import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import { prisma } from './database/prisma.service.js';
 import { requestIdMiddleware } from './common/request-id.middleware.js';
 import { sendSuccessResponse, sendErrorResponse } from './common/api-error.js';
 import { Logger } from './common/logger.js';
+import { redisClient } from './common/redis.js';
 
 // Services
 import { DealersService } from './modules/dealers/dealers.service.js';
@@ -18,8 +21,9 @@ import { RequirementsService } from './modules/requirements/requirements.service
 import { StorageService } from './modules/storage/storage.service.js';
 import { VehiclesService } from './modules/vehicles/vehicles.service.js';
 import { MatchingService } from './modules/matching/matching.service.js';
-import { MockMessagingProvider } from './modules/notifications/mock-messaging.provider.js';
+import { WhatsAppMessagingProvider } from './modules/notifications/whatsapp-messaging.provider.js';
 import { NotificationsService } from './modules/notifications/notifications.service.js';
+import { QueueService } from './modules/queue/queue.service.js';
 import { FollowupsService } from './modules/followups/followups.service.js';
 import { DashboardService } from './modules/dashboard/dashboard.service.js';
 import { OutboxService } from './modules/outbox/outbox.service.js';
@@ -41,8 +45,14 @@ export function createApp() {
 
   // Security Headers & CORS
   app.use(helmet());
-  app.use(cors({ origin: true, credentials: true }));
+  app.use(cors({
+    origin: process.env.NODE_ENV === 'production' 
+      ? [process.env.FRONTEND_URL || 'https://dealconnect.com'] 
+      : true,
+    credentials: true 
+  }));
   app.use(express.json({ limit: '10mb' }));
+  app.use(cookieParser());
   app.use(requestIdMiddleware);
 
   // Rate Limiter for public API
@@ -51,6 +61,9 @@ export function createApp() {
     max: 200,
     standardHeaders: true,
     legacyHeaders: false,
+    store: new RedisStore({
+      sendCommand: (...args: string[]) => redisClient.call(...args),
+    }),
     message: { error: { code: 'RATE_LIMIT_EXCEEDED', message: 'Too many requests from this IP.' } },
   });
   app.use('/api/', apiLimiter);
@@ -65,8 +78,10 @@ export function createApp() {
   const storageService = new StorageService();
   const vehiclesService = new VehiclesService(prisma, storageService);
   const matchingService = new MatchingService(prisma);
-  const messagingProvider = new MockMessagingProvider();
+  const messagingProvider = new WhatsAppMessagingProvider();
   const notificationsService = new NotificationsService(prisma, messagingProvider);
+  const queueService = new QueueService(notificationsService);
+  notificationsService.setQueueService(queueService);
   const followupsService = new FollowupsService(prisma);
   const dashboardService = new DashboardService(prisma);
 
@@ -77,6 +92,9 @@ export function createApp() {
   });
   outboxService.registerHandler('VehicleUpdated', async (ev) => {
     await matchingService.matchVehicleAgainstRequirements(ev.aggregateId);
+  });
+  outboxService.registerHandler('VehicleSold', async (ev) => {
+    await matchingService.handleVehicleSold(ev.aggregateId);
   });
   outboxService.registerHandler('RequirementCreated', async (ev) => {
     await matchingService.matchRequirementAgainstVehicles(ev.aggregateId);

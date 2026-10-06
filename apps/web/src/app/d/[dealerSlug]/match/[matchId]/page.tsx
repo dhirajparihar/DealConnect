@@ -1,154 +1,183 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import { ApiClient } from '@/lib/api-client';
-import { CheckCircle2, AlertTriangle, PhoneCall, Calendar, Gauge, Fuel, ShieldCheck, Heart } from 'lucide-react';
 
-export default function MatchDetailPage({ params }: { params: { dealerSlug: string; matchId: string } }) {
-  const { dealerSlug, matchId } = params;
+export default function MatchPage() {
+  const params = useParams();
+  const router = useRouter();
+  const dealerSlug = params.dealerSlug as string;
+  const matchId = params.matchId as string;
 
-  const [responseState, setResponseState] = useState<'IDLE' | 'INTERESTED' | 'NOT_NOW' | 'NOT_INTERESTED'>('IDLE');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [match, setMatch] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [acting, setActing] = useState(false);
 
-  // Mock vehicle data for display
-  const vehicle = {
-    stockNumber: 'SM-1024',
-    make: 'Hyundai',
-    model: 'Creta',
-    variant: '1.5 SX Automatic',
-    year: 2022,
-    price: 1020000,
-    fuel: 'Petrol',
-    transmission: 'Automatic',
-    kilometers: 42000,
-    location: 'Sharma Motors Workshop, Branch 1',
-    description: 'Single owner, top-end SX variant with panoramic sunroof, alloy wheels, touch screen navigation, fully dealer serviced with complete records.',
-    status: 'available',
-  };
+  useEffect(() => {
+    async function loadMatch() {
+      try {
+        const data = await ApiClient.request<any>(`/public/matches/${matchId}`, {
+          headers: { 'X-Dealer-Slug': dealerSlug }
+        });
+        setMatch(data);
+      } catch (err: any) {
+        if (err.message.includes('401') || err.message.includes('Customer authentication')) {
+          router.push(`/d/${dealerSlug}?redirect=/d/${dealerSlug}/match/${matchId}`);
+        } else {
+          setError(err.message || 'Failed to load match.');
+        }
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadMatch();
+  }, [dealerSlug, matchId, router]);
 
   const handleInterested = async () => {
-    setLoading(true);
-    setError(null);
+    setActing(true);
     try {
-      await ApiClient.request(`/public/matches/${matchId}/interested`, {
+      await ApiClient.request<any>(`/public/matches/${matchId}/interested`, {
         method: 'POST',
+        headers: { 'X-Dealer-Slug': dealerSlug }
       });
-      setResponseState('INTERESTED');
+      alert("Great! The dealer has been notified and will contact you shortly.");
+      setMatch({ ...match, status: 'interested' });
     } catch (err: any) {
-      // If mock token not set, fallback gracefully for demo UI
-      setResponseState('INTERESTED');
+      alert("Failed to express interest: " + err.message);
     } finally {
-      setLoading(false);
+      setActing(false);
     }
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-red-50 text-red-700 p-4 rounded-lg max-w-md w-full">
+          {error}
+        </div>
+      </div>
+    );
+  }
+
+  if (!match) return null;
+
+  const v = match.vehicle;
+  const image = v.media?.[0]?.url || 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&q=80&w=800';
+
   return (
-    <div className="max-w-md mx-auto min-h-screen bg-slate-50 flex flex-col justify-between">
-      {/* Top Banner */}
-      <header className="bg-slate-900 text-white p-4 flex items-center justify-between shadow-md">
-        <div>
-          <span className="text-[10px] font-bold uppercase tracking-wider text-sky-400">Match Alert</span>
-          <h1 className="text-base font-bold capitalize">{dealerSlug.replace('-', ' ')}</h1>
-        </div>
-        <div className="px-2.5 py-1 bg-emerald-500/20 text-emerald-400 text-xs font-bold rounded-full border border-emerald-500/30">
-          95% Score Match
-        </div>
-      </header>
-
-      {/* Vehicle Hero Image */}
-      <main className="flex-1 p-4">
-        <div className="relative bg-slate-800 rounded-2xl overflow-hidden shadow-lg mb-4 aspect-video flex items-center justify-center">
-          <div className="text-center text-slate-400 p-6">
-            <CarIcon className="w-12 h-12 mx-auto mb-2 text-slate-500" />
-            <span className="text-xs font-medium">Vehicle Photo Gallery</span>
+    <div className="min-h-screen bg-gray-50 p-4 md:p-8">
+      <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
+        
+        {/* Header Image */}
+        <div className="relative h-64 md:h-96">
+          <img src={image} alt={`${v.year} ${v.make} ${v.model}`} className="w-full h-full object-cover" />
+          <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full font-bold text-primary shadow-lg border border-white/20">
+            ₹{Number(v.price).toLocaleString('en-IN')}
           </div>
-          <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-md text-white px-2.5 py-1 rounded-lg text-xs font-semibold">
-            Stock #{vehicle.stockNumber}
-          </div>
-        </div>
-
-        {/* Vehicle Header Specs */}
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/60 mb-4">
-          <h2 className="text-xl font-extrabold text-slate-900">
-            {vehicle.make} {vehicle.model}
-          </h2>
-          <p className="text-xs text-slate-500 mb-3">{vehicle.variant}</p>
-
-          <div className="text-2xl font-black text-sky-600 mb-4">
-            ₹{vehicle.price.toLocaleString('en-IN')}
-          </div>
-
-          <div className="grid grid-cols-3 gap-2 pt-3 border-t border-slate-100 text-center text-xs">
-            <div className="p-2 bg-slate-50 rounded-xl">
-              <Calendar className="w-4 h-4 mx-auto text-slate-400 mb-1" />
-              <span className="font-bold text-slate-700">{vehicle.year}</span>
-            </div>
-            <div className="p-2 bg-slate-50 rounded-xl">
-              <Gauge className="w-4 h-4 mx-auto text-slate-400 mb-1" />
-              <span className="font-bold text-slate-700">{vehicle.kilometers.toLocaleString()} km</span>
-            </div>
-            <div className="p-2 bg-slate-50 rounded-xl">
-              <Fuel className="w-4 h-4 mx-auto text-slate-400 mb-1" />
-              <span className="font-bold text-slate-700">{vehicle.fuel}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Description & Location */}
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/60 mb-6 space-y-3">
-          <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Vehicle Details</h3>
-          <p className="text-xs text-slate-600 leading-relaxed">{vehicle.description}</p>
-        </div>
-
-        {/* ACTION BUTTONS (AC10) */}
-        {responseState === 'IDLE' && (
-          <div className="space-y-3">
-            <button
-              onClick={handleInterested}
-              disabled={loading}
-              className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-2xl shadow-lg transition flex items-center justify-center space-x-2 text-base"
-            >
-              <Heart className="w-5 h-5 fill-current" />
-              <span>I'm Interested — Call Me</span>
-            </button>
-
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => setResponseState('NOT_NOW')}
-                className="py-3 bg-white border border-slate-300 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-50"
-              >
-                Not Now
-              </button>
-              <button
-                onClick={() => setResponseState('NOT_INTERESTED')}
-                className="py-3 bg-white border border-slate-300 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-50"
-              >
-                Not Interested
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Response Feedback */}
-        {responseState === 'INTERESTED' && (
-          <div className="bg-emerald-50 border border-emerald-200 p-5 rounded-2xl text-center">
-            <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto mb-2" />
-            <h3 className="text-base font-bold text-emerald-900 mb-1">Interest Registered!</h3>
-            <p className="text-xs text-emerald-700">
-              Thanks! The dealer has received your request and will call you shortly to arrange a test drive.
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6">
+            <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">
+              {v.year} {v.make} {v.model} {v.variant}
+            </h1>
+            <p className="text-gray-200">
+              {match.dealer.name} • {v.fuel} • {v.transmission}
             </p>
           </div>
-        )}
-      </main>
-    </div>
-  );
-}
+        </div>
 
-function CarIcon(props: any) {
-  return (
-    <svg {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.5 3C2 11.3 2 11.6 2 12v4c0 .6.4 1 1 1h2m14 0a2 2 0 100 4 2 2 0 000-4zm-14 0a2 2 0 100 4 2 2 0 000-4z" />
-    </svg>
+        <div className="p-6 md:p-8 space-y-8">
+          
+          {/* Match Score */}
+          <div className="flex items-center space-x-4 bg-primary/5 p-4 rounded-xl border border-primary/10">
+            <div className="flex-shrink-0 bg-primary text-white font-bold text-2xl h-16 w-16 rounded-full flex items-center justify-center shadow-md">
+              {match.score}%
+            </div>
+            <div>
+              <h3 className="font-semibold text-lg text-gray-900">Match Score</h3>
+              <p className="text-gray-600 text-sm">Based on your requirement preferences.</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Vehicle Details */}
+            <div className="space-y-4">
+              <h3 className="text-xl font-semibold text-gray-900 border-b pb-2">Vehicle Details</h3>
+              <dl className="grid grid-cols-2 gap-y-4 text-sm">
+                <dt className="text-gray-500">Make</dt>
+                <dd className="font-medium text-gray-900">{v.make}</dd>
+                <dt className="text-gray-500">Model</dt>
+                <dd className="font-medium text-gray-900">{v.model}</dd>
+                <dt className="text-gray-500">Year</dt>
+                <dd className="font-medium text-gray-900">{v.year}</dd>
+                <dt className="text-gray-500">Fuel</dt>
+                <dd className="font-medium text-gray-900">{v.fuel || '-'}</dd>
+                <dt className="text-gray-500">Transmission</dt>
+                <dd className="font-medium text-gray-900">{v.transmission || '-'}</dd>
+                <dt className="text-gray-500">Kilometers</dt>
+                <dd className="font-medium text-gray-900">{v.kilometers ? v.kilometers.toLocaleString() + ' km' : '-'}</dd>
+              </dl>
+            </div>
+
+            {/* Score Breakdown (T065) */}
+            <div className="space-y-4">
+              <h3 className="text-xl font-semibold text-gray-900 border-b pb-2">Why it matched</h3>
+              <div className="space-y-3">
+                {Object.entries(match.scoreBreakdown).map(([key, value]) => {
+                  if (key === 'total') return null;
+                  const maxScores: Record<string, number> = {
+                    make_model: 30, budget: 25, year: 15, fuel: 10, transmission: 10, kilometers: 5, location: 5
+                  };
+                  const label = key.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+                  const max = maxScores[key] || 0;
+                  const pct = max > 0 ? ((value as number) / max) * 100 : 0;
+                  
+                  return (
+                    <div key={key}>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-gray-700">{label}</span>
+                        <span className="font-medium text-gray-900">{value as number}/{max}</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-1.5">
+                        <div className="bg-primary h-1.5 rounded-full" style={{ width: `${pct}%` }}></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Call to Action */}
+          <div className="pt-6 border-t">
+            {match.status === 'interested' ? (
+              <div className="bg-green-50 text-green-800 p-6 rounded-xl border border-green-200 text-center">
+                <svg className="w-8 h-8 text-green-500 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <h3 className="font-bold text-lg">Interest Sent!</h3>
+                <p>The dealer will contact you soon about this vehicle.</p>
+              </div>
+            ) : (
+              <button
+                onClick={handleInterested}
+                disabled={acting}
+                className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 px-8 rounded-xl shadow-lg transition-all active:scale-[0.98] flex justify-center items-center text-lg disabled:opacity-70"
+              >
+                {acting ? 'Sending...' : 'I am Interested'}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

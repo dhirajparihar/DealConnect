@@ -23,7 +23,7 @@ export function createVehicleRouter(vehiclesService: VehiclesService, storageSer
   // GET /vehicles (Search inventory)
   router.get('/vehicles', tenantAuthGuard(undefined, 'user'), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const { status, make, model, minPrice, maxPrice, minYear, maxYear, fuel, transmission, limit } = req.query;
+      const { status, make, model, minPrice, maxPrice, minYear, maxYear, fuel, transmission, limit, cursor } = req.query;
       const vehicles = await vehiclesService.searchVehicles({
         status: status as VehicleStatus,
         make: make as string,
@@ -35,6 +35,7 @@ export function createVehicleRouter(vehiclesService: VehiclesService, storageSer
         fuel: fuel as any,
         transmission: transmission as any,
         limit: limit ? Number(limit) : undefined,
+        cursor: cursor as string,
       });
       return sendSuccessResponse(res, vehicles);
     } catch (err) {

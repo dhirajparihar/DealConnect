@@ -35,6 +35,38 @@ export function createMatchingRouter(matchingService: MatchingService, prisma: P
     }
   });
 
+  // GET /public/matches/:id (Get specific match with score breakdown)
+  router.get('/public/matches/:id', tenantAuthGuard(undefined, 'customer'), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const customerId = req.userContext?.sub;
+      const dealerId = requireDealerId();
+      const matchId = req.params.id;
+
+      const match = await prisma.match.findFirst({
+        where: {
+          id: matchId,
+          dealerId,
+          requirement: { customerId },
+        },
+        include: {
+          vehicle: {
+            include: { vehicleMedia: { orderBy: { sortOrder: 'asc' } } },
+          },
+          requirement: { include: { preferences: true } },
+          dealer: true,
+        },
+      });
+
+      if (!match) {
+        throw new Error('Match record not found.');
+      }
+
+      return sendSuccessResponse(res, match);
+    } catch (err) {
+      return sendErrorResponse(res, err);
+    }
+  });
+
   // POST /public/matches/:id/interested (AC10: Customer interested response)
   router.post('/public/matches/:id/interested', tenantAuthGuard(undefined, 'customer'), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {

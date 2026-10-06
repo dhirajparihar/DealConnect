@@ -7,8 +7,8 @@ import { Car, CheckCircle2, ShieldCheck, ArrowRight, Loader2, Search, Filter, Ta
 export default function CustomerPortalPage({ params }: { params: { dealerSlug: string } }) {
   const { dealerSlug } = params;
 
-  // Step States: 'LANDING' | 'OTP_VERIFY' | 'PROFILE' | 'WIZARD' | 'SUCCESS'
-  const [step, setStep] = useState<'LANDING' | 'OTP_VERIFY' | 'PROFILE' | 'WIZARD' | 'SUCCESS'>('LANDING');
+  // Step States: 'LANDING' | 'OTP_VERIFY' | 'PROFILE' | 'DASHBOARD' | 'WIZARD' | 'SUCCESS'
+  const [step, setStep] = useState<'LANDING' | 'OTP_VERIFY' | 'PROFILE' | 'DASHBOARD' | 'WIZARD' | 'SUCCESS'>('LANDING');
 
   // Form States
   const [phone, setPhone] = useState('');
@@ -32,6 +32,10 @@ export default function CustomerPortalPage({ params }: { params: { dealerSlug: s
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Customer Dashboard State
+  const [requirements, setRequirements] = useState<any[]>([]);
+  const [matches, setMatches] = useState<any[]>([]);
 
   // Storefront Vehicles Preview
   const [featuredCars, setFeaturedCars] = useState<any[]>([]);
@@ -72,18 +76,36 @@ export default function CustomerPortalPage({ params }: { params: { dealerSlug: s
           body: JSON.stringify({ challengeId, otp }),
         }
       );
-      ApiClient.setToken(res.sessionToken);
-
       if (res.customerState === 'new') {
         setStep('PROFILE');
       } else {
         setCustomerName(res.customer.name || 'Valued Buyer');
-        setStep('WIZARD');
+        await loadCustomerDashboard();
       }
     } catch (err: any) {
       setError(err.message || 'Invalid OTP');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadCustomerDashboard = async () => {
+    try {
+      const [reqsData, matchesData] = await Promise.all([
+        ApiClient.request<any>('/public/requirements'),
+        ApiClient.request<any>('/public/matches'),
+      ]);
+      setRequirements(reqsData || []);
+      setMatches(matchesData || []);
+      
+      if (reqsData && reqsData.length > 0) {
+        setStep('DASHBOARD');
+      } else {
+        setStep('WIZARD');
+      }
+    } catch (err) {
+      console.error(err);
+      setStep('WIZARD');
     }
   };
 
@@ -124,7 +146,7 @@ export default function CustomerPortalPage({ params }: { params: { dealerSlug: s
           notes,
         }),
       });
-      setStep('SUCCESS');
+      await loadCustomerDashboard();
     } catch (err: any) {
       setError(err.message || 'Failed to submit requirement');
     } finally {
@@ -322,7 +344,58 @@ export default function CustomerPortalPage({ params }: { params: { dealerSlug: s
           </div>
         )}
 
-        {/* STEP 4: Requirement Wizard */}
+        {/* STEP 4: Dashboard (Existing Requirements) */}
+        {step === 'DASHBOARD' && (
+          <div className="space-y-6">
+            <div className="text-center">
+              <h2 className="text-2xl font-bold text-slate-900">Welcome back, {customerName}!</h2>
+              <p className="text-sm text-slate-600 mt-1">Here are your active vehicle requirements.</p>
+            </div>
+
+            <div className="space-y-4">
+              {requirements.map((req, i) => (
+                <div key={i} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                  <div className="flex justify-between items-start mb-2">
+                    <h3 className="font-bold text-slate-800">
+                      {req.preferences?.year} {req.preferences?.make} {req.preferences?.model}
+                    </h3>
+                    <span className="px-2 py-1 text-[10px] font-bold bg-sky-100 text-sky-800 rounded-lg uppercase tracking-wider">
+                      {req.status}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mb-3">
+                    Budget: ₹{req.preferences?.minPrice?.toLocaleString()} - ₹{req.preferences?.maxPrice?.toLocaleString()}
+                  </p>
+                  
+                  {matches.filter(m => m.requirementId === req.id).length > 0 && (
+                    <div className="border-t border-slate-100 pt-3">
+                      <p className="text-xs font-semibold text-emerald-600 mb-2">
+                        {matches.filter(m => m.requirementId === req.id).length} Matches Found
+                      </p>
+                      <div className="space-y-2">
+                        {matches.filter(m => m.requirementId === req.id).slice(0, 2).map((m: any) => (
+                          <div key={m.id} className="flex justify-between items-center text-xs p-2 bg-slate-50 rounded">
+                            <span>{m.vehicle?.make} {m.vehicle?.model}</span>
+                            <span className="font-bold text-slate-800">{m.score}%</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={() => setStep('WIZARD')}
+              className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow transition"
+            >
+              + Search Another Vehicle
+            </button>
+          </div>
+        )}
+
+        {/* STEP 5: Requirement Wizard */}
         {step === 'WIZARD' && (
           <div>
             <div className="mb-6">
@@ -445,7 +518,7 @@ export default function CustomerPortalPage({ params }: { params: { dealerSlug: s
           </div>
         )}
 
-        {/* STEP 5: Success Screen */}
+        {/* STEP 6: Success Screen */}
         {step === 'SUCCESS' && (
           <div className="text-center py-6">
             <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -456,13 +529,14 @@ export default function CustomerPortalPage({ params }: { params: { dealerSlug: s
               We've registered your requirement for <strong>{make} {model}</strong>. The 100-Point Matching Engine will scan inventory continuously and notify you on WhatsApp.
             </p>
             <button
-              onClick={() => setStep('LANDING')}
-              className="px-6 py-2.5 bg-slate-900 text-white text-xs font-bold rounded-xl shadow hover:bg-slate-800 transition"
+              onClick={() => setStep('DASHBOARD')}
+              className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow transition"
             >
-              Back to Storefront
+              Back to Dashboard
             </button>
           </div>
         )}
+
       </main>
 
       {/* Bottom Footer */}

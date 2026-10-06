@@ -5,10 +5,16 @@ import { ApiError } from '../../common/api-error.js';
 import { Logger } from '../../common/logger.js';
 
 export class NotificationsService {
+  private queueService?: any;
+
   constructor(
     private prisma: PrismaClient,
     private messagingProvider: MessagingProvider
   ) {}
+
+  setQueueService(queueService: any) {
+    this.queueService = queueService;
+  }
 
   /**
    * Queue a vehicle match notification with strict idempotency (AC09 & AC08).
@@ -63,10 +69,12 @@ export class NotificationsService {
       },
     });
 
-    // Execute message send
-    const success = await this.sendNotification(notification.id);
-    if (!success) {
-      throw new Error('Notification provider failed to send message');
+    // Execute message send async via queue
+    if (this.queueService) {
+      await this.queueService.addSendNotificationJob(notification.id);
+    } else {
+      // Fallback
+      await this.sendNotification(notification.id);
     }
     return notification.id;
   }

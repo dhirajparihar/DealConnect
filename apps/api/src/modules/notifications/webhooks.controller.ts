@@ -2,6 +2,8 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { NotificationsService } from './notifications.service.js';
 import { MessagingProvider } from './messaging-provider.interface.js';
 import { sendSuccessResponse, sendErrorResponse, ApiError } from '../../common/api-error.js';
+import { redisClient } from '../../common/redis.js';
+import crypto from 'crypto';
 
 export function createWebhookRouter(notificationsService: NotificationsService, messagingProvider: MessagingProvider): Router {
   const router = Router();
@@ -20,7 +22,15 @@ export function createWebhookRouter(notificationsService: NotificationsService, 
 
       const event = messagingProvider.parseWebhookEvent(req.body);
       if (event) {
-        await notificationsService.handleWebhookStatusUpdate(event.providerMessageId, event.status, event.failureReason);
+        const eventHash = crypto.createHash('sha256').update(rawBody).digest('hex');
+        const idempotencyKey = `webhook:whatsapp:${event.providerMessageId}:${eventHash}`;
+        
+        // Use SET NX to acquire an atomic lock / idempotency check
+        const isNew = await redisClient.set(idempotencyKey, '1', 'NX', 'EX', 7 * 24 * 60 * 60);
+        
+        if (isNew) {
+          await notificationsService.handleWebhookStatusUpdate(event.providerMessageId, event.status, event.failureReason);
+        }
       }
 
       return sendSuccessResponse(res, { status: 'processed' });

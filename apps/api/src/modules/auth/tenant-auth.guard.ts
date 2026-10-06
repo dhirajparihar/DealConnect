@@ -12,12 +12,14 @@ export function tenantAuthGuard(allowedRoles?: DealerRole[], allowedType: 'user'
   const jwtService = new JwtService();
 
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new ApiError(401, 'UNAUTHORIZED', 'Missing or invalid Authorization header.');
+    let token = req.cookies?.token;
+    if (!token) {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        throw new ApiError(401, 'UNAUTHORIZED', 'Missing or invalid Authentication token.');
+      }
+      token = authHeader.substring(7);
     }
-
-    const token = authHeader.substring(7);
     const payload = jwtService.verifyToken(token);
     
     if (allowedType !== 'any' && payload.type !== allowedType) {

@@ -90,4 +90,43 @@ export class FollowupsService {
       type: updated.type as FollowupType,
     };
   }
+
+  async assignFollowup(followupId: string, assignedUserId: string): Promise<Followup> {
+    const dealerId = requireDealerId();
+    
+    const existing = await this.prisma.followup.findFirst({
+      where: { id: followupId, dealerId },
+    });
+
+    if (!existing) {
+      throw new ApiError(404, 'FOLLOWUP_NOT_FOUND', 'Followup record not found.');
+    }
+
+    const updated = await this.prisma.followup.update({
+      where: { id: followupId },
+      data: { assignedUserId },
+    });
+
+    return {
+      ...updated,
+      status: updated.status as FollowupStatus,
+      type: updated.type as FollowupType,
+    };
+  }
+
+  async escalateOverdueFollowups(): Promise<number> {
+    const overdueCutoff = new Date(Date.now() - 2 * 60 * 60 * 1000); // 2 hours overdue
+
+    const updated = await this.prisma.followup.updateMany({
+      where: {
+        status: FollowupStatus.OPEN,
+        dueAt: { lte: overdueCutoff },
+      },
+      data: {
+        status: FollowupStatus.OVERDUE,
+      },
+    });
+
+    return updated.count;
+  }
 }

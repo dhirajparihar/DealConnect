@@ -134,7 +134,8 @@ export class VehiclesService {
     fuel?: FuelType;
     transmission?: TransmissionType;
     limit?: number;
-  }): Promise<Vehicle[]> {
+    cursor?: string;
+  }): Promise<{ items: Vehicle[], nextCursor: string | null }> {
     const dealerId = requireDealerId();
     const where: any = {};
 
@@ -154,16 +155,26 @@ export class VehiclesService {
     if (filters?.fuel) where.fuel = filters.fuel;
     if (filters?.transmission) where.transmission = filters.transmission;
 
+    const limit = filters?.limit || 50;
+
     const vehicles = await this.prisma.executeWithRls(async (tx: any) => {
       return tx.vehicle.findMany({
         where,
         include: { vehicleMedia: { orderBy: { sortOrder: 'asc' } } },
-        take: filters?.limit || 50,
+        take: limit + 1, // Fetch one extra to determine if there is a next page
+        ...(filters?.cursor ? { cursor: { id: filters.cursor }, skip: 1 } : {}),
         orderBy: { createdAt: 'desc' },
       });
     });
 
-    return vehicles.map((v: any) => ({
+    let nextCursor: string | null = null;
+    if (vehicles.length > limit) {
+      const nextItem = vehicles.pop();
+      nextCursor = nextItem.id;
+    }
+
+    return {
+      items: vehicles.map((v: any) => ({
       ...v,
       price: Number(v.price),
       status: v.status as VehicleStatus,
@@ -173,7 +184,9 @@ export class VehiclesService {
         ...m,
         url: this.storageService.getPublicUrl(m.storageKey),
       })),
-    }));
+    })),
+    nextCursor,
+    };
   }
 
   async updateVehicleStatus(vehicleId: string, newStatus: VehicleStatus): Promise<Vehicle> {

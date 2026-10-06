@@ -29,9 +29,12 @@ export default function DealerDashboardPage() {
   const [transmission, setTransmission] = useState('automatic');
   const [kilometers, setKilometers] = useState(38000);
   const [description, setDescription] = useState('Single owner, complete dealer service history.');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   // Live/Sample Data lists
   const [inventory, setInventory] = useState<any[]>([]);
+  const [inventorySearch, setInventorySearch] = useState('');
+  const [inventoryStatus, setInventoryStatus] = useState('ALL');
 
   const [customers, setCustomers] = useState<any[]>([]);
 
@@ -50,9 +53,8 @@ export default function DealerDashboardPage() {
   useEffect(() => {
     const savedDealer = localStorage.getItem('dealconnect_dealer');
     const savedUser = localStorage.getItem('dealconnect_user');
-    const token = localStorage.getItem('dealconnect_token');
 
-    if (token && savedDealer) {
+    if (savedDealer) {
       setIsLoggedIn(true);
       setDealerInfo(JSON.parse(savedDealer));
       if (savedUser) setUserInfo(JSON.parse(savedUser));
@@ -66,8 +68,18 @@ export default function DealerDashboardPage() {
       if (data) {
         setMetrics(data);
       }
-    } catch (err) {
-      console.error('Failed to fetch metrics:', err);
+      
+      const inv = await ApiClient.request<any>('/vehicles');
+      if (inv) setInventory(inv);
+
+      const cust = await ApiClient.request<any>('/customers');
+      if (cust) setCustomers(cust);
+
+    } catch (err: any) {
+      if (err.message.includes('401') || err.message.includes('UNAUTHORIZED')) {
+        handleLogout();
+      }
+      console.error('Failed to fetch data:', err);
     }
   };
 
@@ -85,7 +97,6 @@ export default function DealerDashboardPage() {
         body: JSON.stringify({ dealerSlug: customSlug.toLowerCase().replace(/\s+/g, '-'), email: loginEmail, password: loginPassword }),
       });
 
-      ApiClient.setToken(data.token);
       localStorage.setItem('dealconnect_dealer', JSON.stringify(data.dealer));
       localStorage.setItem('dealconnect_user', JSON.stringify(data.user));
 
@@ -100,8 +111,8 @@ export default function DealerDashboardPage() {
     }
   };
 
-  const handleLogout = () => {
-    ApiClient.clearToken();
+  const handleLogout = async () => {
+    await ApiClient.logout();
     localStorage.removeItem('dealconnect_dealer');
     localStorage.removeItem('dealconnect_user');
     setIsLoggedIn(false);
@@ -128,7 +139,7 @@ export default function DealerDashboardPage() {
     };
 
     try {
-      await ApiClient.request('/vehicles', {
+      const res = await ApiClient.request<{ id: string }>('/vehicles', {
         method: 'POST',
         body: JSON.stringify({
           stockNumber: newVehicle.stockNumber,
@@ -143,6 +154,31 @@ export default function DealerDashboardPage() {
           description,
         }),
       });
+
+      // Handle Image Upload if selected
+      if (selectedFile && res.id) {
+        try {
+          // 1. Get presigned URL
+          const { uploadUrl } = await ApiClient.request<any>(`/vehicles/${res.id}/media/upload-url`, {
+            method: 'POST',
+            body: JSON.stringify({
+              filename: selectedFile.name,
+              mimeType: selectedFile.type,
+              sizeBytes: selectedFile.size
+            })
+          });
+
+          // 2. Put to S3
+          await fetch(uploadUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': selectedFile.type },
+            body: selectedFile
+          });
+        } catch (uploadErr) {
+          console.error('Failed to upload image', uploadErr);
+        }
+      }
+
       setInventory([newVehicle, ...inventory]);
       setMetrics((prev) => ({ ...prev, availableVehiclesCount: prev.availableVehiclesCount + 1 }));
       setIsAddVehicleOpen(false);
@@ -279,6 +315,18 @@ export default function DealerDashboardPage() {
           </button>
 
           <button
+            onClick={() => {
+              const url = `${window.location.origin}/d/${dealerInfo?.slug}`;
+              navigator.clipboard.writeText(url);
+              showToast('Customer portal link copied to clipboard!');
+            }}
+            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl transition flex items-center space-x-1 border border-slate-700"
+          >
+            <KeyRound className="w-3.5 h-3.5 mr-1" />
+            <span>Copy Portal Link</span>
+          </button>
+
+          <button
             onClick={handleLogout}
             className="px-3 py-2 bg-slate-800 hover:bg-rose-900 text-slate-300 hover:text-white font-semibold rounded-xl transition flex items-center space-x-1"
           >
@@ -349,7 +397,7 @@ export default function DealerDashboardPage() {
               activeTab === 'CUSTOMERS' ? 'border-sky-600 text-sky-600' : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
-            Customers & Requirements ({customers.length})
+            Match Center & Requirements ({customers.length})
           </button>
           <button
             onClick={() => setActiveTab('INVENTORY')}
@@ -450,11 +498,11 @@ export default function DealerDashboardPage() {
           </div>
         )}
 
-        {/* TAB 2: CUSTOMERS & REQUIREMENTS */}
+        {/* TAB 2: MATCH CENTER & REQUIREMENTS */}
         {activeTab === 'CUSTOMERS' && (
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="font-bold text-slate-900 text-base">Registered Buyer Requirements</h3>
+              <h3 className="font-bold text-slate-900 text-base">Match Center: Active Buyer Requirements</h3>
               <span className="text-xs text-slate-400">Scoped to {dealerInfo?.name}</span>
             </div>
 
@@ -516,8 +564,40 @@ export default function DealerDashboardPage() {
               </button>
             </div>
 
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search make, model, stock #"
+                  className="pl-9 pr-3 py-2 w-full text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  value={inventorySearch}
+                  onChange={(e) => setInventorySearch(e.target.value)}
+                />
+              </div>
+              <select
+                className="px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
+                value={inventoryStatus}
+                onChange={(e) => setInventoryStatus(e.target.value)}
+              >
+                <option value="ALL">All Status</option>
+                <option value="AVAILABLE">Available</option>
+                <option value="RESERVED">Reserved</option>
+                <option value="SOLD">Sold</option>
+              </select>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {inventory.map((v) => (
+              {inventory.filter((v) => {
+                if (inventoryStatus !== 'ALL' && v.status !== inventoryStatus) return false;
+                if (inventorySearch) {
+                  const q = inventorySearch.toLowerCase();
+                  return v.make.toLowerCase().includes(q) || 
+                         v.model.toLowerCase().includes(q) || 
+                         v.stockNumber.toLowerCase().includes(q);
+                }
+                return true;
+              }).map((v) => (
                 <div key={v.id} className="p-4 border border-slate-200 rounded-2xl flex items-center justify-between hover:shadow-md transition">
                   <div className="space-y-1">
                     <div className="flex items-center space-x-2">
@@ -526,7 +606,7 @@ export default function DealerDashboardPage() {
                       </span>
                       <h4 className="font-bold text-slate-900 text-base">{v.year} {v.make} {v.model}</h4>
                     </div>
-                    <p className="text-xs text-slate-500">{v.variant} • {v.fuel.toUpperCase()} • {v.transmission.toUpperCase()} • {v.km.toLocaleString()} km</p>
+                    <p className="text-xs text-slate-500">{v.variant} • {v.fuel?.toUpperCase()} • {v.transmission?.toUpperCase()} • {v.kilometers?.toLocaleString() || v.km?.toLocaleString()} km</p>
                     <p className="text-sm font-black text-emerald-600">₹{(v.price / 100000).toFixed(2)} Lakhs</p>
                   </div>
 
@@ -701,6 +781,16 @@ export default function DealerDashboardPage() {
                     className="w-full p-2.5 border border-slate-300 rounded-xl"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-600 font-semibold mb-1">Upload Photo (S3 Presigned)</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                  className="w-full text-xs text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100"
+                />
               </div>
 
               <div>

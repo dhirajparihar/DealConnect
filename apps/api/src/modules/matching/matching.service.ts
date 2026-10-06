@@ -43,6 +43,18 @@ export interface RequirementMatchInput {
 export class MatchingService {
   public static readonly NOTIFICATION_THRESHOLD = 75;
 
+  private calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const R = 6371; // Earth's radius in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  }
+
   constructor(private prisma: PrismaClient) {}
 
   /**
@@ -133,6 +145,14 @@ export class MatchingService {
 
     // 7. Location score (Max 5)
     let locationScore = 5;
+    if (pref?.locationLat && pref?.locationLng && vehicle.locationLat && vehicle.locationLng) {
+      const distance = this.calculateDistanceKm(pref.locationLat, pref.locationLng, vehicle.locationLat, vehicle.locationLng);
+      const radius = pref.radiusKm || 50; // Default 50km radius
+      if (distance > radius) {
+        return { score: 0, breakdown: this.emptyBreakdown(), isEligible: false }; // Hard reject if outside radius
+      }
+      locationScore = Math.round(5 * (1 - (distance / radius)));
+    }
 
     const total = makeModelScore + budgetScore + yearScore + fuelScore + transmissionScore + kmScore + locationScore;
 
@@ -227,6 +247,9 @@ export class MatchingService {
               fuel: candidate.preferences.fuel,
               transmission: candidate.preferences.transmission,
               maxKm: candidate.preferences.maxKm,
+              locationLat: candidate.preferences.locationLat ? Number(candidate.preferences.locationLat) : null,
+              locationLng: candidate.preferences.locationLng ? Number(candidate.preferences.locationLng) : null,
+              radiusKm: candidate.preferences.radiusKm ? Number(candidate.preferences.radiusKm) : null,
             }
           : null,
       };
@@ -247,6 +270,24 @@ export class MatchingService {
     }
 
     return matchesCreated;
+  }
+
+  /**
+   * Handle when a vehicle is sold to expire its active matches.
+   */
+  async handleVehicleSold(vehicleId: string) {
+    const dealerId = requireDealerId();
+    await this.prisma.match.updateMany({
+      where: {
+        vehicleId,
+        dealerId,
+        status: { in: [MatchStatus.NEW, MatchStatus.NOTIFIED, MatchStatus.INTERESTED] }
+      },
+      data: {
+        status: MatchStatus.EXPIRED,
+        updatedAt: new Date()
+      }
+    });
   }
 
   /**
@@ -288,6 +329,9 @@ export class MatchingService {
             fuel: requirement.preferences.fuel,
             transmission: requirement.preferences.transmission,
             maxKm: requirement.preferences.maxKm,
+            locationLat: requirement.preferences.locationLat ? Number(requirement.preferences.locationLat) : null,
+            locationLng: requirement.preferences.locationLng ? Number(requirement.preferences.locationLng) : null,
+            radiusKm: requirement.preferences.radiusKm ? Number(requirement.preferences.radiusKm) : null,
           }
         : null,
     };

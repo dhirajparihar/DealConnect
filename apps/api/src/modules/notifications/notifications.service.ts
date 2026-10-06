@@ -43,7 +43,11 @@ export class NotificationsService {
     });
 
     if (existing) {
-      Logger.info(`Notification already queued/sent for key ${idempotencyKey}`);
+      Logger.info(`Notification already exists for key ${idempotencyKey}, status: ${existing.status}`);
+      if (existing.status === NotificationStatus.QUEUED || existing.status === NotificationStatus.FAILED) {
+        const success = await this.sendNotification(existing.id);
+        if (!success) throw new Error('Notification provider failed to send message');
+      }
       return existing.id;
     }
 
@@ -60,7 +64,10 @@ export class NotificationsService {
     });
 
     // Execute message send
-    await this.sendNotification(notification.id);
+    const success = await this.sendNotification(notification.id);
+    if (!success) {
+      throw new Error('Notification provider failed to send message');
+    }
     return notification.id;
   }
 

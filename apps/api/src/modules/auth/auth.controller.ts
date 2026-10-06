@@ -33,9 +33,9 @@ export function createAuthRouter(authService: AuthService): Router {
   // POST /public/dealer-auth/login
   router.post('/public/dealer-auth/login', async (req: Request, res: Response) => {
     try {
-      const { dealerSlug, email } = req.body;
+      const { dealerSlug, email, password } = req.body;
       const slug = dealerSlug || 'sharma-motors';
-      const result = await authService.loginDealerUser(slug, email);
+      const result = await authService.loginDealerUser(slug, email, password);
       return sendSuccessResponse(res, result);
     } catch (err) {
       return sendErrorResponse(res, err);
@@ -45,7 +45,8 @@ export function createAuthRouter(authService: AuthService): Router {
   // POST /public/admin-auth/login
   router.post('/public/admin-auth/login', async (req: Request, res: Response) => {
     try {
-      const result = await authService.loginPlatformAdmin();
+      const { password } = req.body;
+      const result = await authService.loginPlatformAdmin(password);
       return sendSuccessResponse(res, result);
     } catch (err) {
       return sendErrorResponse(res, err);

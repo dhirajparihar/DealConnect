@@ -8,7 +8,7 @@ export function createRequirementRouter(requirementsService: RequirementsService
   const router = Router();
 
   // POST /public/requirements (Create requirement as authenticated customer)
-  router.post('/public/requirements', tenantAuthGuard(), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  router.post('/public/requirements', tenantAuthGuard(undefined, 'customer'), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const customerId = req.userContext?.sub;
       if (!customerId) {
@@ -23,7 +23,7 @@ export function createRequirementRouter(requirementsService: RequirementsService
   });
 
   // GET /public/requirements (List authenticated customer's requirements)
-  router.get('/public/requirements', tenantAuthGuard(), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  router.get('/public/requirements', tenantAuthGuard(undefined, 'customer'), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const customerId = req.userContext?.sub;
       if (!customerId) {
@@ -37,7 +37,7 @@ export function createRequirementRouter(requirementsService: RequirementsService
   });
 
   // PATCH /public/requirements/:id (Update requirement status/pause/close)
-  router.patch('/public/requirements/:id', tenantAuthGuard(), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  router.patch('/public/requirements/:id', tenantAuthGuard(undefined, 'customer'), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const customerId = req.userContext?.sub;
       if (!customerId) {

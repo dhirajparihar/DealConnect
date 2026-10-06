@@ -8,7 +8,7 @@ export function createCustomerRouter(customersService: CustomersService): Router
   const router = Router();
 
   // GET /public/customer/profile (Requires customer JWT token)
-  router.get('/public/customer/profile', tenantAuthGuard(), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  router.get('/public/customer/profile', tenantAuthGuard(undefined, 'customer'), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const customerId = req.userContext?.sub;
       if (!customerId) {
@@ -22,7 +22,7 @@ export function createCustomerRouter(customersService: CustomersService): Router
   });
 
   // POST /public/customer/profile
-  router.post('/public/customer/profile', tenantAuthGuard(), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  router.post('/public/customer/profile', tenantAuthGuard(undefined, 'customer'), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const customerId = req.userContext?.sub;
       if (!customerId) {

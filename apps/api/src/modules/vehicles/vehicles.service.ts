@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { PrismaService } from '../../database/prisma.service.js';
 import { Vehicle, VehicleStatus, FuelType, TransmissionType } from '@dealconnect/shared-types';
 import { ApiError } from '../../common/api-error.js';
 import { requireDealerId } from '../../common/tenant-context.js';
@@ -6,7 +7,7 @@ import { StorageService } from '../storage/storage.service.js';
 
 export class VehiclesService {
   constructor(
-    private prisma: PrismaClient,
+    private prisma: PrismaService,
     private storageService: StorageService
   ) {}
 
@@ -27,20 +28,20 @@ export class VehiclesService {
   }): Promise<Vehicle> {
     const dealerId = requireDealerId();
 
-    const existing = await this.prisma.vehicle.findUnique({
-      where: {
-        dealerId_stockNumber: {
-          dealerId,
-          stockNumber: data.stockNumber,
+    return this.prisma.executeWithRls(async (tx: any) => {
+      const existing = await tx.vehicle.findUnique({
+        where: {
+          dealerId_stockNumber: {
+            dealerId,
+            stockNumber: data.stockNumber,
+          },
         },
-      },
-    });
+      });
 
-    if (existing) {
-      throw new ApiError(409, 'STOCK_NUMBER_EXISTS', `Vehicle stock number '${data.stockNumber}' already exists for this dealer.`);
-    }
+      if (existing) {
+        throw new ApiError(409, 'STOCK_NUMBER_EXISTS', `Vehicle stock number '${data.stockNumber}' already exists for this dealer.`);
+      }
 
-    return this.prisma.$transaction(async (tx: any) => {
       const vehicle = await tx.vehicle.create({
         data: {
           dealerId,
@@ -96,9 +97,11 @@ export class VehiclesService {
 
   async getVehicleById(id: string): Promise<Vehicle> {
     const dealerId = requireDealerId();
-    const vehicle = await this.prisma.vehicle.findFirst({
-      where: { id, dealerId },
-      include: { vehicleMedia: { orderBy: { sortOrder: 'asc' } } },
+    const vehicle = await this.prisma.executeWithRls(async (tx: any) => {
+      return tx.vehicle.findFirst({
+        where: { id },
+        include: { vehicleMedia: { orderBy: { sortOrder: 'asc' } } },
+      });
     });
 
     if (!vehicle) {
@@ -133,7 +136,7 @@ export class VehiclesService {
     limit?: number;
   }): Promise<Vehicle[]> {
     const dealerId = requireDealerId();
-    const where: any = { dealerId };
+    const where: any = {};
 
     if (filters?.status) where.status = filters.status;
     if (filters?.make) where.make = { equals: filters.make, mode: 'insensitive' };
@@ -151,11 +154,13 @@ export class VehiclesService {
     if (filters?.fuel) where.fuel = filters.fuel;
     if (filters?.transmission) where.transmission = filters.transmission;
 
-    const vehicles = await this.prisma.vehicle.findMany({
-      where,
-      include: { vehicleMedia: { orderBy: { sortOrder: 'asc' } } },
-      take: filters?.limit || 50,
-      orderBy: { createdAt: 'desc' },
+    const vehicles = await this.prisma.executeWithRls(async (tx: any) => {
+      return tx.vehicle.findMany({
+        where,
+        include: { vehicleMedia: { orderBy: { sortOrder: 'asc' } } },
+        take: filters?.limit || 50,
+        orderBy: { createdAt: 'desc' },
+      });
     });
 
     return vehicles.map((v: any) => ({
@@ -175,7 +180,7 @@ export class VehiclesService {
     const dealerId = requireDealerId();
     const existing = await this.getVehicleById(vehicleId);
 
-    return this.prisma.$transaction(async (tx: any) => {
+    return this.prisma.executeWithRls(async (tx: any) => {
       const isSold = newStatus === VehicleStatus.SOLD;
 
       const updated = await tx.vehicle.update({
@@ -217,13 +222,15 @@ export class VehiclesService {
     const dealerId = requireDealerId();
     await this.getVehicleById(vehicleId); // verifies existence & tenant access
 
-    return this.prisma.vehicleMedia.create({
-      data: {
-        dealerId,
-        vehicleId,
-        storageKey,
-        mediaType,
-      },
+    return this.prisma.executeWithRls(async (tx: any) => {
+      return tx.vehicleMedia.create({
+        data: {
+          dealerId,
+          vehicleId,
+          storageKey,
+          mediaType,
+        },
+      });
     });
   }
 }

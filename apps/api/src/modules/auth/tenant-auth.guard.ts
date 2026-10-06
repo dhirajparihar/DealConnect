@@ -8,7 +8,7 @@ export interface AuthenticatedRequest extends Request {
   userContext?: AuthJwtPayload;
 }
 
-export function tenantAuthGuard(allowedRoles?: DealerRole[]) {
+export function tenantAuthGuard(allowedRoles?: DealerRole[], allowedType: 'user' | 'customer' | 'any' = 'any') {
   const jwtService = new JwtService();
 
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
@@ -19,6 +19,11 @@ export function tenantAuthGuard(allowedRoles?: DealerRole[]) {
 
     const token = authHeader.substring(7);
     const payload = jwtService.verifyToken(token);
+    
+    if (allowedType !== 'any' && payload.type !== allowedType) {
+      throw new ApiError(403, 'FORBIDDEN', `This endpoint requires a ${allowedType} token.`);
+    }
+    
     req.userContext = payload;
 
     const currentContext = getTenantContext() || { requestId: `req_${Date.now()}` };

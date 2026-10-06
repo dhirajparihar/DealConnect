@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { PrismaService } from '../../database/prisma.service.js';
 import { requireDealerId } from '../../common/tenant-context.js';
 
 export interface DashboardMetrics {
@@ -12,59 +13,62 @@ export interface DashboardMetrics {
 }
 
 export class DashboardService {
-  constructor(private prisma: PrismaClient) {}
+  constructor(private prisma: PrismaService) {}
 
   async getMetrics(): Promise<DashboardMetrics> {
     const dealerId = requireDealerId();
     const now = new Date();
 
-    const [
-      activeCustomersCount,
-      activeRequirementsCount,
-      availableVehiclesCount,
-      newMatchesCount,
-      interestedLeadsCount,
-      pendingFollowupsCount,
-      overdueFollowupsCount,
-    ] = await Promise.all([
-      this.prisma.customer.count({ where: { dealerId, status: 'active' } }),
-      this.prisma.requirement.count({ where: { dealerId, status: 'searching' } }),
-      this.prisma.vehicle.count({ where: { dealerId, status: 'available' } }),
-      this.prisma.match.count({ where: { dealerId, status: 'new' } }),
-      this.prisma.match.count({ where: { dealerId, status: 'interested' } }),
-      this.prisma.followup.count({ where: { dealerId, status: 'open' } }),
-      this.prisma.followup.count({
-        where: {
-          dealerId,
-          status: 'open',
-          dueAt: { lt: now },
-        },
-      }),
-    ]);
+    return this.prisma.executeWithRls(async (tx: any) => {
+      const [
+        activeCustomersCount,
+        activeRequirementsCount,
+        availableVehiclesCount,
+        newMatchesCount,
+        interestedLeadsCount,
+        pendingFollowupsCount,
+        overdueFollowupsCount,
+      ] = await Promise.all([
+        tx.customer.count({ where: { status: 'active' } }),
+        tx.requirement.count({ where: { status: 'searching' } }),
+        tx.vehicle.count({ where: { status: 'available' } }),
+        tx.match.count({ where: { status: 'new' } }),
+        tx.match.count({ where: { status: 'interested' } }),
+        tx.followup.count({ where: { status: 'open' } }),
+        tx.followup.count({
+          where: {
+            status: 'open',
+            dueAt: { lt: now },
+          },
+        }),
+      ]);
 
-    return {
-      activeCustomersCount,
-      activeRequirementsCount,
-      availableVehiclesCount,
-      newMatchesCount,
-      interestedLeadsCount,
-      pendingFollowupsCount,
-      overdueFollowupsCount,
-    };
+      return {
+        activeCustomersCount,
+        activeRequirementsCount,
+        availableVehiclesCount,
+        newMatchesCount,
+        interestedLeadsCount,
+        pendingFollowupsCount,
+        overdueFollowupsCount,
+      };
+    });
   }
 
   async getRecentActivity(limit = 15) {
     const dealerId = requireDealerId();
-    return this.prisma.activity.findMany({
-      where: { dealerId },
-      include: {
-        customer: true,
-        requirement: true,
-        vehicle: true,
-        user: true,
-      },
-      take: limit,
-      orderBy: { createdAt: 'desc' },
+    return this.prisma.executeWithRls(async (tx: any) => {
+      return tx.activity.findMany({
+        where: {},
+        include: {
+          customer: true,
+          requirement: true,
+          vehicle: true,
+          user: true,
+        },
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      });
     });
   }
 }

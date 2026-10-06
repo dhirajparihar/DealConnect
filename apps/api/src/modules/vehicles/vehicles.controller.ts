@@ -10,7 +10,7 @@ export function createVehicleRouter(vehiclesService: VehiclesService, storageSer
   const router = Router();
 
   // POST /vehicles (Create vehicle inventory item)
-  router.post('/vehicles', tenantAuthGuard([DealerRole.OWNER, DealerRole.MANAGER]), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  router.post('/vehicles', tenantAuthGuard([DealerRole.OWNER, DealerRole.MANAGER], 'user'), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const parsed = CreateVehicleSchema.parse(req.body);
       const vehicle = await vehiclesService.createVehicle(parsed);
@@ -21,7 +21,7 @@ export function createVehicleRouter(vehiclesService: VehiclesService, storageSer
   });
 
   // GET /vehicles (Search inventory)
-  router.get('/vehicles', tenantAuthGuard(), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  router.get('/vehicles', tenantAuthGuard(undefined, 'user'), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const { status, make, model, minPrice, maxPrice, minYear, maxYear, fuel, transmission, limit } = req.query;
       const vehicles = await vehiclesService.searchVehicles({
@@ -43,7 +43,7 @@ export function createVehicleRouter(vehiclesService: VehiclesService, storageSer
   });
 
   // GET /vehicles/:id
-  router.get('/vehicles/:id', tenantAuthGuard(), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  router.get('/vehicles/:id', tenantAuthGuard(undefined, 'user'), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const vehicle = await vehiclesService.getVehicleById(req.params.id);
       return sendSuccessResponse(res, vehicle);
@@ -53,7 +53,7 @@ export function createVehicleRouter(vehiclesService: VehiclesService, storageSer
   });
 
   // PATCH /vehicles/:id/status
-  router.patch('/vehicles/:id/status', tenantAuthGuard([DealerRole.OWNER, DealerRole.MANAGER]), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  router.patch('/vehicles/:id/status', tenantAuthGuard([DealerRole.OWNER, DealerRole.MANAGER], 'user'), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const { status } = req.body;
       if (!status) {
@@ -67,7 +67,7 @@ export function createVehicleRouter(vehiclesService: VehiclesService, storageSer
   });
 
   // POST /vehicles/:id/media/upload-url (Generate presigned upload URL)
-  router.post('/vehicles/:id/media/upload-url', tenantAuthGuard([DealerRole.OWNER, DealerRole.MANAGER]), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  router.post('/vehicles/:id/media/upload-url', tenantAuthGuard([DealerRole.OWNER, DealerRole.MANAGER], 'user'), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const dealerId = req.userContext?.dealerId;
       if (!dealerId) throw new Error('Dealer context required');

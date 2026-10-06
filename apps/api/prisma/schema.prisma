@@ -39,6 +39,7 @@ model User {
   name       String   @db.VarChar(160)
   phone      String?  @db.VarChar(30)
   email      String?  @db.VarChar(254)
+  passwordHash String? @map("password_hash") @db.VarChar(255)
   authStatus String   @default("active") @map("auth_status") @db.VarChar(30)
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz

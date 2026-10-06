@@ -24,10 +24,10 @@ export class PrismaService extends PrismaClient {
     const context = getTenantContext();
     return this.$transaction(async (tx: any) => {
       if (context?.dealerId) {
-        await tx.$executeRawUnsafe(`SET LOCAL app.current_dealer_id = '${context.dealerId}';`);
+        await tx.$executeRaw`SELECT set_config('app.current_dealer_id', ${context.dealerId}, true)`;
       }
       if (context?.isPlatformAdmin) {
-        await tx.$executeRawUnsafe(`SET LOCAL app.is_platform_admin = 'true';`);
+        await tx.$executeRaw`SELECT set_config('app.is_platform_admin', 'true', true)`;
       }
       return fn(tx as PrismaClient);
     });

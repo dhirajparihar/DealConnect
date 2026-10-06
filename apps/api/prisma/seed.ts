@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { CustomerStatus, RequirementStatus, VehicleStatus, FuelType, TransmissionType, DealerRole } from '@dealconnect/shared-types';
+import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
@@ -26,6 +27,7 @@ async function main() {
       name: 'Sharma Owner',
       email: 'owner@sharmamotors.com',
       phone: '+919876543210',
+      passwordHash: bcrypt.hashSync('password123', 10),
       authStatus: 'active',
       dealerUsers: {
         create: {

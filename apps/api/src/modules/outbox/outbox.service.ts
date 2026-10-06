@@ -22,36 +22,35 @@ export class OutboxService {
     this.handlers.set(eventType, list);
   }
 
-  async fetchPendingEvents(limit = 20) {
-    const now = new Date();
-    return this.prisma.outboxEvent.findMany({
-      where: {
-        status: { in: [OutboxEventStatus.PENDING, OutboxEventStatus.FAILED] },
-        availableAt: { lte: now },
-        attempts: { lt: 5 },
-      },
-      take: limit,
-      orderBy: { createdAt: 'asc' },
-    });
+  async processPendingBatch(limit = 20): Promise<number> {
+    // Atomic fetch and lock
+    const events = await this.prisma.$queryRaw<any[]>`
+      UPDATE "OutboxEvent"
+      SET 
+        status = 'processing',
+        attempts = attempts + 1
+      WHERE id IN (
+        SELECT id FROM "OutboxEvent"
+        WHERE status IN ('pending', 'failed')
+          AND "availableAt" <= NOW()
+          AND attempts < 5
+        ORDER BY "createdAt" ASC
+        FOR UPDATE SKIP LOCKED
+        LIMIT ${limit}
+      )
+      RETURNING *;
+    `;
+
+    let processedCount = 0;
+    for (const ev of events) {
+      const success = await this.processLockedEvent(ev);
+      if (success) processedCount++;
+    }
+    return processedCount;
   }
 
-  async processEvent(eventId: string): Promise<boolean> {
+  private async processLockedEvent(event: any): Promise<boolean> {
     const now = new Date();
-
-    // Lock event for processing
-    const event = await this.prisma.outboxEvent.findUnique({ where: { id: eventId } });
-    if (!event || (event.status !== OutboxEventStatus.PENDING && event.status !== OutboxEventStatus.FAILED)) {
-      return false;
-    }
-
-    await this.prisma.outboxEvent.update({
-      where: { id: eventId },
-      data: {
-        status: OutboxEventStatus.PROCESSING,
-        attempts: { increment: 1 },
-      },
-    });
-
     try {
       const eventHandlers = this.handlers.get(event.eventType) || [];
 
@@ -62,49 +61,37 @@ export class OutboxService {
           eventType: event.eventType,
           aggregateType: event.aggregateType,
           aggregateId: event.aggregateId,
-          payload: event.payload as Record<string, any>,
+          payload: typeof event.payload === 'string' ? JSON.parse(event.payload) : event.payload,
         });
       }
 
-      // Mark as processed
       await this.prisma.outboxEvent.update({
-        where: { id: eventId },
+        where: { id: event.id },
         data: {
           status: OutboxEventStatus.PROCESSED,
           processedAt: new Date(),
         },
       });
 
-      Logger.info(`Outbox event processed successfully`, { eventId, eventType: event.eventType });
+      Logger.info(`Outbox event processed successfully`, { eventId: event.id, eventType: event.eventType });
       return true;
     } catch (err: any) {
-      const attempts = event.attempts + 1;
+      const attempts = event.attempts;
       const isDeadLetter = attempts >= 5;
 
-      // Exponential backoff: 2^attempts * 10 seconds
       const backoffSeconds = Math.pow(2, attempts) * 10;
       const availableAt = new Date(now.getTime() + backoffSeconds * 1000);
 
       await this.prisma.outboxEvent.update({
-        where: { id: eventId },
+        where: { id: event.id },
         data: {
           status: isDeadLetter ? OutboxEventStatus.DEAD_LETTER : OutboxEventStatus.FAILED,
           availableAt,
         },
       });
 
-      Logger.error(`Outbox event handler failed`, err, { eventId, eventType: event.eventType, attempts, isDeadLetter });
+      Logger.error(`Outbox event handler failed`, err, { eventId: event.id, eventType: event.eventType, attempts, isDeadLetter });
       return false;
     }
-  }
-
-  async processPendingBatch(limit = 20): Promise<number> {
-    const events = await this.fetchPendingEvents(limit);
-    let processedCount = 0;
-    for (const ev of events) {
-      const success = await this.processEvent(ev.id);
-      if (success) processedCount++;
-    }
-    return processedCount;
   }
 }

@@ -5,7 +5,7 @@ import { AuthenticatedRequest, tenantAuthGuard } from '../auth/tenant-auth.guard
 
 export function createDashboardRouter(dashboardService: DashboardService): Router {
   const router = Router();
-  const authGuard = tenantAuthGuard();
+  const authGuard = tenantAuthGuard(undefined, 'user');
 
   // GET /dashboard/metrics
   router.get('/dashboard/metrics', authGuard, async (req: AuthenticatedRequest, res: Response) => {

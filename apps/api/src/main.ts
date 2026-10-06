@@ -75,8 +75,20 @@ export function createApp() {
   outboxService.registerHandler('VehicleCreated', async (ev) => {
     await matchingService.matchVehicleAgainstRequirements(ev.aggregateId);
   });
+  outboxService.registerHandler('VehicleUpdated', async (ev) => {
+    await matchingService.matchVehicleAgainstRequirements(ev.aggregateId);
+  });
+  outboxService.registerHandler('RequirementCreated', async (ev) => {
+    await matchingService.matchRequirementAgainstVehicles(ev.aggregateId);
+  });
+  outboxService.registerHandler('RequirementUpdated', async (ev) => {
+    await matchingService.matchRequirementAgainstVehicles(ev.aggregateId);
+  });
   outboxService.registerHandler('MatchCreated', async (ev) => {
     await notificationsService.queueMatchNotification(ev.aggregateId);
+  });
+  outboxService.registerHandler('CustomerInterested', async (ev) => {
+    Logger.info(`Customer interested in match ${ev.payload.matchId}, followup ${ev.payload.followupId} created.`);
   });
 
   const outboxWorker = new OutboxWorker(outboxService);

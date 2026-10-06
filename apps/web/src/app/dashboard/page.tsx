@@ -10,7 +10,9 @@ export default function DealerDashboardPage() {
   const [dealerInfo, setDealerInfo] = useState<{ name: string; slug: string } | null>(null);
   const [userInfo, setUserInfo] = useState<{ name: string; email: string; role: string } | null>(null);
   const [loading, setLoading] = useState(false);
-  const [customSlug, setCustomSlug] = useState('');
+  const [customSlug, setCustomSlug] = useState('sharma-motors');
+  const [loginEmail, setLoginEmail] = useState('owner@sharmamotors.com');
+  const [loginPassword, setLoginPassword] = useState('password123');
 
   // Modals & Action States
   const [isAddVehicleOpen, setIsAddVehicleOpen] = useState(false);
@@ -29,34 +31,20 @@ export default function DealerDashboardPage() {
   const [description, setDescription] = useState('Single owner, complete dealer service history.');
 
   // Live/Sample Data lists
-  const [inventory, setInventory] = useState([
-    { id: 'v1', stockNumber: 'SM-1024', make: 'Hyundai', model: 'Creta', variant: 'SX', year: 2022, price: 1020000, fuel: 'petrol', transmission: 'automatic', km: 42000, status: 'AVAILABLE' },
-    { id: 'v2', stockNumber: 'SM-1019', make: 'Toyota', model: 'Fortuner', variant: '4x4 AT', year: 2021, price: 3150000, fuel: 'diesel', transmission: 'automatic', km: 58000, status: 'AVAILABLE' },
-    { id: 'v3', stockNumber: 'SM-1008', make: 'Honda', model: 'City', variant: 'VX CVT', year: 2020, price: 890000, fuel: 'petrol', transmission: 'automatic', km: 34000, status: 'RESERVED' },
-    { id: 'v4', stockNumber: 'SM-1005', make: 'Tata', model: 'Nexon EV', variant: 'XZ+ Lux', year: 2023, price: 1420000, fuel: 'electric', transmission: 'automatic', km: 19000, status: 'AVAILABLE' },
-  ]);
+  const [inventory, setInventory] = useState<any[]>([]);
 
-  const [customers, setCustomers] = useState([
-    { id: 'c1', name: 'Rahul Sharma', phone: '+91 98765 43210', search: 'Hyundai Creta (2021-2024)', budget: '₹9 - 11 Lakhs', status: 'MATCHED (95%)' },
-    { id: 'c2', name: 'Ankit Verma', phone: '+91 99887 76655', search: 'Toyota Fortuner (2020-2023)', budget: '₹28 - 33 Lakhs', status: 'MATCHED (88%)' },
-    { id: 'c3', name: 'Priya Singh', phone: '+91 97112 23344', search: 'Honda City Automatic', budget: '₹8 - 10 Lakhs', status: 'SEARCHING' },
-    { id: 'c4', name: 'Vikram Mehta', phone: '+91 98220 11990', search: 'Tata Nexon EV / SUV', budget: '₹12 - 15 Lakhs', status: 'MATCHED (92%)' },
-  ]);
+  const [customers, setCustomers] = useState<any[]>([]);
 
-  const [followups, setFollowups] = useState([
-    { id: 'f1', customer: 'Rahul Sharma', phone: '+91 98765 43210', action: 'Arrange Creta SX Test Drive', due: 'Today 02:00 PM', status: 'PENDING' },
-    { id: 'f2', customer: 'Ankit Verma', phone: '+91 99887 76655', action: 'Follow up on Fortuner Finance approval', due: 'Today 05:30 PM', status: 'PENDING' },
-    { id: 'f3', customer: 'Priya Singh', phone: '+91 97112 23344', action: 'Send Honda City valuation quote', due: 'Tomorrow 11:00 AM', status: 'PENDING' },
-  ]);
+  const [followups, setFollowups] = useState<any[]>([]);
 
   const [metrics, setMetrics] = useState({
-    activeCustomersCount: 42,
-    activeRequirementsCount: 38,
-    availableVehiclesCount: 19,
-    newMatchesCount: 14,
-    interestedLeadsCount: 6,
-    pendingFollowupsCount: 8,
-    overdueFollowupsCount: 2,
+    activeCustomersCount: 0,
+    activeRequirementsCount: 0,
+    availableVehiclesCount: 0,
+    newMatchesCount: 0,
+    interestedLeadsCount: 0,
+    pendingFollowupsCount: 0,
+    overdueFollowupsCount: 0,
   });
 
   useEffect(() => {
@@ -79,11 +67,13 @@ export default function DealerDashboardPage() {
         setMetrics(data);
       }
     } catch (err) {
-      console.log('Using demo fallback metrics');
+      console.error('Failed to fetch metrics:', err);
     }
   };
 
-  const handleLogin = async (slug: string) => {
+  const handleLogin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!customSlug || !loginEmail || !loginPassword) return;
     setLoading(true);
     try {
       const data = await ApiClient.request<{
@@ -92,7 +82,7 @@ export default function DealerDashboardPage() {
         user: { name: string; email: string; role: string };
       }>('/public/dealer-auth/login', {
         method: 'POST',
-        body: JSON.stringify({ dealerSlug: slug }),
+        body: JSON.stringify({ dealerSlug: customSlug.toLowerCase().replace(/\s+/g, '-'), email: loginEmail, password: loginPassword }),
       });
 
       ApiClient.setToken(data.token);
@@ -104,16 +94,7 @@ export default function DealerDashboardPage() {
       setIsLoggedIn(true);
       fetchMetrics();
     } catch (err: any) {
-      const demoDealer = { name: slug === 'apex-motors' ? 'Apex Motors' : 'Sharma Motors', slug };
-      const demoUser = { name: `${demoDealer.name} Owner`, email: `owner@${slug}.com`, role: 'OWNER' };
-      
-      localStorage.setItem('dealconnect_dealer', JSON.stringify(demoDealer));
-      localStorage.setItem('dealconnect_user', JSON.stringify(demoUser));
-      localStorage.setItem('dealconnect_token', 'demo-jwt-token');
-
-      setDealerInfo(demoDealer);
-      setUserInfo(demoUser);
-      setIsLoggedIn(true);
+      alert('Login failed. Please check your credentials or ensure the backend is running.');
     } finally {
       setLoading(false);
     }
@@ -162,15 +143,16 @@ export default function DealerDashboardPage() {
           description,
         }),
       });
+      setInventory([newVehicle, ...inventory]);
+      setMetrics((prev) => ({ ...prev, availableVehiclesCount: prev.availableVehiclesCount + 1 }));
+      setIsAddVehicleOpen(false);
+      setLoading(false);
+      showToast(`Added ${make} ${model} (Stock #${newVehicle.stockNumber}) to Inventory!`);
     } catch (err) {
-      console.log('Added vehicle locally:', err);
+      console.error('Failed to add vehicle:', err);
+      alert('Failed to add vehicle.');
+      setLoading(false);
     }
-
-    setInventory([newVehicle, ...inventory]);
-    setMetrics((prev) => ({ ...prev, availableVehiclesCount: prev.availableVehiclesCount + 1 }));
-    setIsAddVehicleOpen(false);
-    setLoading(false);
-    showToast(`Added ${make} ${model} (Stock #${newVehicle.stockNumber}) to Inventory!`);
   };
 
   const toggleVehicleStatus = (id: string) => {
@@ -205,68 +187,45 @@ export default function DealerDashboardPage() {
           </div>
 
           <div className="space-y-3 pt-2">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Select Dealership Account</p>
-
-            <button
-              onClick={() => handleLogin('sharma-motors')}
-              disabled={loading}
-              className="w-full p-4 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl flex items-center justify-between transition group text-left"
-            >
-              <div className="flex items-center space-x-3">
-                <div className="p-2.5 bg-blue-100 text-blue-700 rounded-xl">
-                  <Building2 className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-slate-900 text-sm group-hover:text-sky-600 transition">Sharma Motors</h4>
-                  <p className="text-xs text-slate-500">Owner Account • sharma-motors</p>
-                </div>
+            <form onSubmit={handleLogin} className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">Dealer Slug</label>
+                <input
+                  type="text"
+                  value={customSlug}
+                  onChange={(e) => setCustomSlug(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  required
+                />
               </div>
-              <span className="text-xs font-bold text-sky-600 bg-sky-50 px-2.5 py-1 rounded-lg">Sign In →</span>
-            </button>
-
-            <button
-              onClick={() => handleLogin('apex-motors')}
-              disabled={loading}
-              className="w-full p-4 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl flex items-center justify-between transition group text-left"
-            >
-              <div className="flex items-center space-x-3">
-                <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-xl">
-                  <Building2 className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-slate-900 text-sm group-hover:text-sky-600 transition">Apex Motors</h4>
-                  <p className="text-xs text-slate-500">Owner Account • apex-motors</p>
-                </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">Email</label>
+                <input
+                  type="email"
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  required
+                />
               </div>
-              <span className="text-xs font-bold text-sky-600 bg-sky-50 px-2.5 py-1 rounded-lg">Sign In →</span>
-            </button>
-
-            <div className="pt-2 border-t border-slate-100">
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (customSlug) handleLogin(customSlug.toLowerCase().replace(/\s+/g, '-'));
-                }}
-                className="space-y-2"
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">Password</label>
+                <input
+                  type="password"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  required
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full px-4 py-3 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition mt-2"
               >
-                <label className="text-xs font-semibold text-slate-600">Or enter custom Dealer Slug:</label>
-                <div className="flex space-x-2">
-                  <input
-                    type="text"
-                    placeholder="e.g. royal-cars"
-                    value={customSlug}
-                    onChange={(e) => setCustomSlug(e.target.value)}
-                    className="flex-1 px-3 py-2 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition"
-                  >
-                    Go
-                  </button>
-                </div>
-              </form>
-            </div>
+                Sign In
+              </button>
+            </form>
           </div>
 
           <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-[11px] flex items-center space-x-2">

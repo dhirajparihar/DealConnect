@@ -1,10 +1,11 @@
 import { PrismaClient } from '@prisma/client';
+import { PrismaService } from '../../database/prisma.service.js';
 import { Requirement, RequirementStatus, RequirementPriority, FuelType, TransmissionType } from '@dealconnect/shared-types';
 import { ApiError } from '../../common/api-error.js';
 import { requireDealerId } from '../../common/tenant-context.js';
 
 export class RequirementsService {
-  constructor(private prisma: PrismaClient) {}
+  constructor(private prisma: PrismaService) {}
 
   async createRequirement(
     customerId: string,
@@ -28,7 +29,7 @@ export class RequirementsService {
   ): Promise<Requirement> {
     const dealerId = requireDealerId();
 
-    return this.prisma.$transaction(async (tx: any) => {
+    return this.prisma.executeWithRls(async (tx: any) => {
       const requirement = await tx.requirement.create({
         data: {
           dealerId,
@@ -100,15 +101,16 @@ export class RequirementsService {
 
   async getCustomerRequirements(customerId: string): Promise<Requirement[]> {
     const dealerId = requireDealerId();
-    const requirements = await this.prisma.requirement.findMany({
-      where: {
-        dealerId,
-        customerId,
-      },
-      include: {
-        preferences: true,
-      },
-      orderBy: { createdAt: 'desc' },
+    const requirements = await this.prisma.executeWithRls(async (tx: any) => {
+      return tx.requirement.findMany({
+        where: {
+          customerId,
+        },
+        include: {
+          preferences: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      });
     });
 
     return requirements.map((r: any) => ({
@@ -132,19 +134,20 @@ export class RequirementsService {
 
   async updateRequirementStatus(requirementId: string, customerId: string, newStatus: RequirementStatus): Promise<Requirement> {
     const dealerId = requireDealerId();
-    const existing = await this.prisma.requirement.findFirst({
-      where: {
-        id: requirementId,
-        dealerId,
-        customerId,
-      },
+    const existing = await this.prisma.executeWithRls(async (tx: any) => {
+      return tx.requirement.findFirst({
+        where: {
+          id: requirementId,
+          customerId,
+        },
+      });
     });
 
     if (!existing) {
       throw new ApiError(404, 'REQUIREMENT_NOT_FOUND', 'Requirement not found.');
     }
 
-    return this.prisma.$transaction(async (tx: any) => {
+    return this.prisma.executeWithRls(async (tx: any) => {
       const isClosed = newStatus === RequirementStatus.CLOSED || newStatus === RequirementStatus.PURCHASED_ELSEWHERE;
 
       const updated = await tx.requirement.update({

@@ -10,7 +10,7 @@ export function createMatchingRouter(matchingService: MatchingService, prisma: P
   const router = Router();
 
   // GET /public/matches (List authenticated customer's vehicle matches)
-  router.get('/public/matches', tenantAuthGuard(), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  router.get('/public/matches', tenantAuthGuard(undefined, 'customer'), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const customerId = req.userContext?.sub;
       const dealerId = requireDealerId();
@@ -36,7 +36,7 @@ export function createMatchingRouter(matchingService: MatchingService, prisma: P
   });
 
   // POST /public/matches/:id/interested (AC10: Customer interested response)
-  router.post('/public/matches/:id/interested', tenantAuthGuard(), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  router.post('/public/matches/:id/interested', tenantAuthGuard(undefined, 'customer'), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const customerId = req.userContext?.sub;
       const dealerId = requireDealerId();
@@ -53,6 +53,14 @@ export function createMatchingRouter(matchingService: MatchingService, prisma: P
 
       if (!match) {
         throw new Error('Match record not found.');
+      }
+
+      if (match.status === MatchStatus.INTERESTED || match.status === MatchStatus.CONTACTED) {
+        return sendSuccessResponse(res, {
+          status: match.status,
+          followupCreated: false,
+          message: 'Already marked as interested.',
+        });
       }
 
       const result = await prisma.$transaction(async (tx: any) => {

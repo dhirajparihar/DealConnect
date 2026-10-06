@@ -34,11 +34,7 @@ export default function CustomerPortalPage({ params }: { params: { dealerSlug: s
   const [error, setError] = useState<string | null>(null);
 
   // Storefront Vehicles Preview
-  const [featuredCars, setFeaturedCars] = useState([
-    { id: '1', stockNumber: 'SM-1024', make: 'Hyundai', model: 'Creta', variant: 'SX Automatic', year: 2022, price: 1020000, fuel: 'petrol', transmission: 'automatic', km: 42000 },
-    { id: '2', stockNumber: 'SM-1019', make: 'Toyota', model: 'Fortuner', variant: '4x4 AT', year: 2021, price: 3150000, fuel: 'diesel', transmission: 'automatic', km: 58000 },
-    { id: '3', stockNumber: 'SM-1008', make: 'Honda', model: 'City', variant: 'VX CVT', year: 2020, price: 890000, fuel: 'petrol', transmission: 'automatic', km: 34000 },
-  ]);
+  const [featuredCars, setFeaturedCars] = useState<any[]>([]);
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,10 +55,6 @@ export default function CustomerPortalPage({ params }: { params: { dealerSlug: s
       setStep('OTP_VERIFY');
     } catch (err: any) {
       setError(err.message || 'Error requesting OTP');
-      // Dev fallback for instant trial
-      setChallengeId('demo-challenge');
-      setMockOtpHint('123456');
-      setStep('OTP_VERIFY');
     } finally {
       setLoading(false);
     }
@@ -89,8 +81,7 @@ export default function CustomerPortalPage({ params }: { params: { dealerSlug: s
         setStep('WIZARD');
       }
     } catch (err: any) {
-      // Dev fallback
-      setStep('WIZARD');
+      setError(err.message || 'Invalid OTP');
     } finally {
       setLoading(false);
     }
@@ -98,7 +89,19 @@ export default function CustomerPortalPage({ params }: { params: { dealerSlug: s
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    setStep('WIZARD');
+    setLoading(true);
+    setError(null);
+    try {
+      await ApiClient.request('/public/customer/profile', {
+        method: 'POST',
+        body: JSON.stringify({ name: customerName, email: customerEmail }),
+      });
+      setStep('WIZARD');
+    } catch (err: any) {
+      setError(err.message || 'Failed to save profile');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSubmitRequirement = async (e: React.FormEvent) => {
@@ -123,7 +126,7 @@ export default function CustomerPortalPage({ params }: { params: { dealerSlug: s
       });
       setStep('SUCCESS');
     } catch (err: any) {
-      setStep('SUCCESS');
+      setError(err.message || 'Failed to submit requirement');
     } finally {
       setLoading(false);
     }

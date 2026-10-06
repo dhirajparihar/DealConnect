@@ -250,6 +250,82 @@ export class MatchingService {
   }
 
   /**
+   * Runs matching for a newly created requirement against existing available vehicles.
+   */
+  async matchRequirementAgainstVehicles(requirementId: string) {
+    const dealerId = requireDealerId();
+
+    const requirement = await this.prisma.requirement.findFirst({
+      where: { id: requirementId, dealerId },
+      include: { preferences: true },
+    });
+
+    if (!requirement || requirement.status !== 'searching') return [];
+
+    const candidates = await this.prisma.vehicle.findMany({
+      where: {
+        dealerId,
+        status: 'available',
+        ...(requirement.preferences?.make ? { make: { equals: requirement.preferences.make, mode: 'insensitive' } } : {}),
+      },
+    });
+
+    const matchesCreated = [];
+
+    const reqInput: RequirementMatchInput = {
+      id: requirement.id,
+      dealerId: requirement.dealerId,
+      customerId: requirement.customerId,
+      status: requirement.status,
+      preferences: requirement.preferences
+        ? {
+            make: requirement.preferences.make,
+            model: requirement.preferences.model,
+            minYear: requirement.preferences.minYear,
+            maxYear: requirement.preferences.maxYear,
+            minPrice: requirement.preferences.minPrice ? Number(requirement.preferences.minPrice) : null,
+            maxPrice: requirement.preferences.maxPrice ? Number(requirement.preferences.maxPrice) : null,
+            fuel: requirement.preferences.fuel,
+            transmission: requirement.preferences.transmission,
+            maxKm: requirement.preferences.maxKm,
+          }
+        : null,
+    };
+
+    for (const vehicle of candidates) {
+      const vehicleInput: VehicleMatchInput = {
+        id: vehicle.id,
+        dealerId: vehicle.dealerId,
+        make: vehicle.make,
+        model: vehicle.model,
+        variant: vehicle.variant,
+        year: vehicle.year,
+        price: Number(vehicle.price),
+        fuel: vehicle.fuel,
+        transmission: vehicle.transmission,
+        kilometers: vehicle.kilometers,
+        status: vehicle.status,
+      };
+
+      const result = this.calculateScore(reqInput, vehicleInput);
+
+      if (result.isEligible && result.score >= 60) {
+        const savedMatch = await this.upsertMatch(
+          dealerId,
+          requirement.id,
+          vehicle.id,
+          requirement.customerId,
+          result.score,
+          result.breakdown
+        );
+        matchesCreated.push(savedMatch);
+      }
+    }
+
+    return matchesCreated;
+  }
+
+  /**
    * Persists or updates a match record in database and emits Outbox Event.
    */
   async upsertMatch(

@@ -5,6 +5,7 @@ import { DealersService } from '../dealers/dealers.service.js';
 import { CustomerStatus, DealerRole, UserAuthStatus } from '@dealconnect/shared-types';
 import { ApiError } from '../../common/api-error.js';
 import { normalizePhoneNumber } from '@dealconnect/validation';
+import * as bcrypt from 'bcrypt';
 
 export class AuthService {
   constructor(
@@ -97,30 +98,35 @@ export class AuthService {
     return { user, token };
   }
 
-  async loginDealerUser(dealerSlug: string, email?: string) {
+  async loginDealerUser(dealerSlug: string, email?: string, password?: string) {
     const dealer = await this.dealersService.getDealerBySlug(dealerSlug);
-    let dealerUser = await this.prisma.dealerUser.findFirst({
-      where: { dealerId: dealer.id },
-      include: { user: true },
-    });
-
-    if (!dealerUser) {
-      const user = await this.prisma.user.create({
-        data: {
-          name: `${dealer.name} Owner`,
-          email: email || `owner@${dealer.slug}.com`,
-          authStatus: UserAuthStatus.ACTIVE,
-        },
-      });
-      dealerUser = await this.prisma.dealerUser.create({
-        data: {
-          dealerId: dealer.id,
-          userId: user.id,
-          role: DealerRole.OWNER,
-          status: 'active',
-        },
+    
+    // Find user by email and dealer
+    let dealerUser;
+    if (email) {
+      dealerUser = await this.prisma.dealerUser.findFirst({
+        where: { dealerId: dealer.id, user: { email } },
         include: { user: true },
       });
+    } else {
+      dealerUser = await this.prisma.dealerUser.findFirst({
+        where: { dealerId: dealer.id },
+        include: { user: true },
+      });
+    }
+
+    if (!dealerUser) {
+      throw new ApiError(401, 'UNAUTHORIZED', 'Invalid credentials or dealer not found.');
+    }
+    
+    if (password && dealerUser.user.passwordHash) {
+      const isMatch = await bcrypt.compare(password, dealerUser.user.passwordHash);
+      if (!isMatch) {
+        throw new ApiError(401, 'UNAUTHORIZED', 'Invalid credentials.');
+      }
+    } else if (password) {
+      // If user provided a password but DB doesn't have one, for now reject it.
+      throw new ApiError(401, 'UNAUTHORIZED', 'Invalid credentials.');
     }
 
     const token = this.jwtService.generateUserToken(dealerUser.userId, dealer.id, dealerUser.role as DealerRole);
@@ -140,19 +146,22 @@ export class AuthService {
     };
   }
 
-  async loginPlatformAdmin() {
+  async loginPlatformAdmin(password?: string) {
     let admin = await this.prisma.user.findFirst({
       where: { email: 'admin@dealconnect.com' },
     });
 
     if (!admin) {
-      admin = await this.prisma.user.create({
-        data: {
-          name: 'Platform Super Admin',
-          email: 'admin@dealconnect.com',
-          authStatus: UserAuthStatus.ACTIVE,
-        },
-      });
+      throw new ApiError(401, 'UNAUTHORIZED', 'Admin account not found.');
+    }
+
+    if (password && admin.passwordHash) {
+      const isMatch = await bcrypt.compare(password, admin.passwordHash);
+      if (!isMatch) {
+        throw new ApiError(401, 'UNAUTHORIZED', 'Invalid credentials.');
+      }
+    } else if (password) {
+      throw new ApiError(401, 'UNAUTHORIZED', 'Invalid credentials.');
     }
 
     // Platform admin token without specific tenant restriction

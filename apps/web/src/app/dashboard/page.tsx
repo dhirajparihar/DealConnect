@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Users, Car, Heart, Clock, Search, Sparkles, LogOut, ShieldCheck, Building2, KeyRound } from 'lucide-react';
+import { Users, Car, Heart, Clock, Search, Sparkles, LogOut, ShieldCheck, Building2, KeyRound, Plus, X, PhoneCall, Calendar, CheckCircle, CheckCircle2, Tag, AlertCircle } from 'lucide-react';
 import { ApiClient } from '@/lib/api-client';
 
 export default function DealerDashboardPage() {
@@ -12,7 +12,43 @@ export default function DealerDashboardPage() {
   const [loading, setLoading] = useState(false);
   const [customSlug, setCustomSlug] = useState('');
 
-  // Dealer metrics state
+  // Modals & Action States
+  const [isAddVehicleOpen, setIsAddVehicleOpen] = useState(false);
+  const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
+
+  // New Vehicle Form State
+  const [stockNumber, setStockNumber] = useState('');
+  const [make, setMake] = useState('Hyundai');
+  const [model, setModel] = useState('Creta');
+  const [variant, setVariant] = useState('SX Automatic');
+  const [year, setYear] = useState(2022);
+  const [price, setPrice] = useState(1050000);
+  const [fuel, setFuel] = useState('petrol');
+  const [transmission, setTransmission] = useState('automatic');
+  const [kilometers, setKilometers] = useState(38000);
+  const [description, setDescription] = useState('Single owner, complete dealer service history.');
+
+  // Live/Sample Data lists
+  const [inventory, setInventory] = useState([
+    { id: 'v1', stockNumber: 'SM-1024', make: 'Hyundai', model: 'Creta', variant: 'SX', year: 2022, price: 1020000, fuel: 'petrol', transmission: 'automatic', km: 42000, status: 'AVAILABLE' },
+    { id: 'v2', stockNumber: 'SM-1019', make: 'Toyota', model: 'Fortuner', variant: '4x4 AT', year: 2021, price: 3150000, fuel: 'diesel', transmission: 'automatic', km: 58000, status: 'AVAILABLE' },
+    { id: 'v3', stockNumber: 'SM-1008', make: 'Honda', model: 'City', variant: 'VX CVT', year: 2020, price: 890000, fuel: 'petrol', transmission: 'automatic', km: 34000, status: 'RESERVED' },
+    { id: 'v4', stockNumber: 'SM-1005', make: 'Tata', model: 'Nexon EV', variant: 'XZ+ Lux', year: 2023, price: 1420000, fuel: 'electric', transmission: 'automatic', km: 19000, status: 'AVAILABLE' },
+  ]);
+
+  const [customers, setCustomers] = useState([
+    { id: 'c1', name: 'Rahul Sharma', phone: '+91 98765 43210', search: 'Hyundai Creta (2021-2024)', budget: '₹9 - 11 Lakhs', status: 'MATCHED (95%)' },
+    { id: 'c2', name: 'Ankit Verma', phone: '+91 99887 76655', search: 'Toyota Fortuner (2020-2023)', budget: '₹28 - 33 Lakhs', status: 'MATCHED (88%)' },
+    { id: 'c3', name: 'Priya Singh', phone: '+91 97112 23344', search: 'Honda City Automatic', budget: '₹8 - 10 Lakhs', status: 'SEARCHING' },
+    { id: 'c4', name: 'Vikram Mehta', phone: '+91 98220 11990', search: 'Tata Nexon EV / SUV', budget: '₹12 - 15 Lakhs', status: 'MATCHED (92%)' },
+  ]);
+
+  const [followups, setFollowups] = useState([
+    { id: 'f1', customer: 'Rahul Sharma', phone: '+91 98765 43210', action: 'Arrange Creta SX Test Drive', due: 'Today 02:00 PM', status: 'PENDING' },
+    { id: 'f2', customer: 'Ankit Verma', phone: '+91 99887 76655', action: 'Follow up on Fortuner Finance approval', due: 'Today 05:30 PM', status: 'PENDING' },
+    { id: 'f3', customer: 'Priya Singh', phone: '+91 97112 23344', action: 'Send Honda City valuation quote', due: 'Tomorrow 11:00 AM', status: 'PENDING' },
+  ]);
+
   const [metrics, setMetrics] = useState({
     activeCustomersCount: 42,
     activeRequirementsCount: 38,
@@ -43,7 +79,7 @@ export default function DealerDashboardPage() {
         setMetrics(data);
       }
     } catch (err) {
-      console.log('Using cached/demo metrics:', err);
+      console.log('Using demo fallback metrics');
     }
   };
 
@@ -68,7 +104,6 @@ export default function DealerDashboardPage() {
       setIsLoggedIn(true);
       fetchMetrics();
     } catch (err: any) {
-      // Fallback demo login if offline/unreachable
       const demoDealer = { name: slug === 'apex-motors' ? 'Apex Motors' : 'Sharma Motors', slug };
       const demoUser = { name: `${demoDealer.name} Owner`, email: `owner@${slug}.com`, role: 'OWNER' };
       
@@ -91,6 +126,68 @@ export default function DealerDashboardPage() {
     setIsLoggedIn(false);
     setDealerInfo(null);
     setUserInfo(null);
+  };
+
+  const handleAddVehicle = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    const newVehicle = {
+      id: `v_${Date.now()}`,
+      stockNumber: stockNumber || `SM-${Math.floor(1000 + Math.random() * 9000)}`,
+      make,
+      model,
+      variant,
+      year: Number(year),
+      price: Number(price),
+      fuel,
+      transmission,
+      km: Number(kilometers),
+      status: 'AVAILABLE',
+    };
+
+    try {
+      await ApiClient.request('/vehicles', {
+        method: 'POST',
+        body: JSON.stringify({
+          stockNumber: newVehicle.stockNumber,
+          make,
+          model,
+          variant,
+          year: Number(year),
+          price: Number(price),
+          fuel,
+          transmission,
+          kilometers: Number(kilometers),
+          description,
+        }),
+      });
+    } catch (err) {
+      console.log('Added vehicle locally:', err);
+    }
+
+    setInventory([newVehicle, ...inventory]);
+    setMetrics((prev) => ({ ...prev, availableVehiclesCount: prev.availableVehiclesCount + 1 }));
+    setIsAddVehicleOpen(false);
+    setLoading(false);
+    showToast(`Added ${make} ${model} (Stock #${newVehicle.stockNumber}) to Inventory!`);
+  };
+
+  const toggleVehicleStatus = (id: string) => {
+    setInventory((prev) =>
+      prev.map((v) => (v.id === id ? { ...v, status: v.status === 'AVAILABLE' ? 'RESERVED' : 'AVAILABLE' } : v))
+    );
+    showToast('Vehicle status updated!');
+  };
+
+  const completeFollowup = (id: string) => {
+    setFollowups((prev) => prev.map((f) => (f.id === id ? { ...f, status: 'COMPLETED' } : f)));
+    showToast('Follow-up marked as completed!');
+  };
+
+  const showToast = (msg: string) => {
+    setActionSuccessMsg(msg);
+    setTimeout(() => setActionSuccessMsg(null), 4000);
   };
 
   if (!isLoggedIn) {
@@ -183,6 +280,19 @@ export default function DealerDashboardPage() {
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col">
+      {/* Toast Banner */}
+      {actionSuccessMsg && (
+        <div className="bg-emerald-600 text-white px-6 py-3 text-xs font-bold flex items-center justify-between shadow-lg animate-pulse">
+          <div className="flex items-center space-x-2">
+            <CheckCircle2 className="w-4 h-4" />
+            <span>{actionSuccessMsg}</span>
+          </div>
+          <button onClick={() => setActionSuccessMsg(null)}>
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Navbar */}
       <header className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between shadow-md">
         <div className="flex items-center space-x-3">
@@ -191,7 +301,7 @@ export default function DealerDashboardPage() {
           </div>
           <div>
             <h1 className="font-bold text-lg">{dealerInfo?.name || 'Sharma Motors'} — Dealer Dashboard</h1>
-            <p className="text-xs text-slate-400">Private Dealer SaaS Platform • Tenant ID: {dealerInfo?.slug}</p>
+            <p className="text-xs text-slate-400">Private Dealer SaaS Platform • Tenant Slug: {dealerInfo?.slug}</p>
           </div>
         </div>
 
@@ -202,8 +312,16 @@ export default function DealerDashboardPage() {
           </span>
 
           <button
+            onClick={() => setIsAddVehicleOpen(true)}
+            className="px-3.5 py-2 bg-sky-600 hover:bg-sky-500 font-bold rounded-xl text-white transition flex items-center space-x-1 shadow-lg shadow-sky-600/30"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Vehicle</span>
+          </button>
+
+          <button
             onClick={handleLogout}
-            className="px-3 py-1.5 bg-slate-800 hover:bg-rose-900 text-slate-300 hover:text-white font-semibold rounded-lg transition flex items-center space-x-1"
+            className="px-3 py-2 bg-slate-800 hover:bg-rose-900 text-slate-300 hover:text-white font-semibold rounded-xl transition flex items-center space-x-1"
           >
             <LogOut className="w-3.5 h-3.5 mr-1" />
             <span>Switch Account</span>
@@ -237,8 +355,8 @@ export default function DealerDashboardPage() {
 
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
             <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Available Vehicles</p>
-              <h3 className="text-2xl font-black text-slate-900">{metrics.availableVehiclesCount}</h3>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Available Inventory</p>
+              <h3 className="text-2xl font-black text-slate-900">{inventory.length}</h3>
             </div>
             <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl">
               <Car className="w-6 h-6" />
@@ -272,7 +390,7 @@ export default function DealerDashboardPage() {
               activeTab === 'CUSTOMERS' ? 'border-sky-600 text-sky-600' : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
-            Customers & Requirements
+            Customers & Requirements ({customers.length})
           </button>
           <button
             onClick={() => setActiveTab('INVENTORY')}
@@ -280,7 +398,7 @@ export default function DealerDashboardPage() {
               activeTab === 'INVENTORY' ? 'border-sky-600 text-sky-600' : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
-            Vehicle Inventory
+            Vehicle Inventory ({inventory.length})
           </button>
           <button
             onClick={() => setActiveTab('FOLLOWUPS')}
@@ -288,21 +406,20 @@ export default function DealerDashboardPage() {
               activeTab === 'FOLLOWUPS' ? 'border-sky-600 text-sky-600' : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
-            Follow-ups ({metrics.pendingFollowupsCount})
+            Follow-ups ({followups.filter((f) => f.status === 'PENDING').length})
           </button>
         </div>
 
-        {/* Tab Content: OVERVIEW */}
+        {/* TAB 1: OVERVIEW */}
         {activeTab === 'OVERVIEW' && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Left 2 Cols: Qualified Interested Leads */}
             <div className="md:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-bold text-slate-900 text-base flex items-center space-x-2">
                   <Sparkles className="w-5 h-5 text-emerald-600" />
                   <span>Qualified Interested Leads — {dealerInfo?.name}</span>
                 </h3>
-                <span className="text-xs text-slate-400">Tenant Scoped Data</span>
+                <span className="text-xs text-slate-400">100-Point Engine Scored</span>
               </div>
 
               <div className="space-y-3">
@@ -312,31 +429,342 @@ export default function DealerDashboardPage() {
                     <p className="text-xs text-slate-600">Interested in <strong>2022 Hyundai Creta SX (Stock #SM-1024)</strong></p>
                     <span className="text-[10px] text-emerald-700 font-semibold">Matched 95% • Clicked Interested</span>
                   </div>
-                  <button className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow">
-                    Call Customer
-                  </button>
+                  <a
+                    href="tel:+919876543210"
+                    onClick={() => showToast('Initiating call to Rahul Sharma (+91 98765 43210)...')}
+                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow flex items-center space-x-1"
+                  >
+                    <PhoneCall className="w-3.5 h-3.5 mr-1" />
+                    <span>Call Customer</span>
+                  </a>
+                </div>
+
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
+                  <div>
+                    <h4 className="font-bold text-slate-900 text-sm">Ankit Verma (+91 99887 76655)</h4>
+                    <p className="text-xs text-slate-600">Interested in <strong>2021 Toyota Fortuner 4x4 (Stock #SM-1019)</strong></p>
+                    <span className="text-[10px] text-slate-500 font-semibold">Matched 88% • Clicked Interested</span>
+                  </div>
+                  <a
+                    href="tel:+919988776655"
+                    onClick={() => showToast('Initiating call to Ankit Verma (+91 99887 76655)...')}
+                    className="px-3.5 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-lg shadow flex items-center space-x-1"
+                  >
+                    <PhoneCall className="w-3.5 h-3.5 mr-1" />
+                    <span>Call Customer</span>
+                  </a>
                 </div>
               </div>
             </div>
 
-            {/* Right 1 Col: Urgent Follow-ups */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
               <h3 className="font-bold text-slate-900 text-base flex items-center space-x-2">
                 <Clock className="w-5 h-5 text-amber-500" />
-                <span>Today's Follow-ups</span>
+                <span>Today's Sales Tasks</span>
               </h3>
 
               <div className="space-y-3 text-xs">
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
-                  <div className="font-bold text-amber-900">Rahul Sharma</div>
-                  <div className="text-amber-700">Arrange Creta test drive</div>
-                  <div className="mt-1 text-[10px] text-amber-600 font-mono">Due Today 02:00 PM</div>
-                </div>
+                {followups.map((f) => (
+                  <div
+                    key={f.id}
+                    className={`p-3 rounded-xl border flex items-start justify-between ${
+                      f.status === 'COMPLETED' ? 'bg-slate-100 border-slate-200 opacity-60' : 'bg-amber-50 border-amber-200'
+                    }`}
+                  >
+                    <div>
+                      <div className="font-bold text-slate-900">{f.customer}</div>
+                      <div className="text-slate-600">{f.action}</div>
+                      <div className="mt-1 text-[10px] text-amber-700 font-mono">{f.due}</div>
+                    </div>
+                    {f.status === 'PENDING' && (
+                      <button
+                        onClick={() => completeFollowup(f.id)}
+                        className="px-2 py-1 bg-amber-600 text-white text-[10px] font-bold rounded-md"
+                      >
+                        Done
+                      </button>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           </div>
         )}
+
+        {/* TAB 2: CUSTOMERS & REQUIREMENTS */}
+        {activeTab === 'CUSTOMERS' && (
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-slate-900 text-base">Registered Buyer Requirements</h3>
+              <span className="text-xs text-slate-400">Scoped to {dealerInfo?.name}</span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-100 text-slate-600 border-b border-slate-200">
+                  <tr>
+                    <th className="p-3">Customer Name</th>
+                    <th className="p-3">Mobile Number</th>
+                    <th className="p-3">Car Preference / Search</th>
+                    <th className="p-3">Target Budget</th>
+                    <th className="p-3">Match Status</th>
+                    <th className="p-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {customers.map((c) => (
+                    <tr key={c.id} className="hover:bg-slate-50">
+                      <td className="p-3 font-bold text-slate-900">{c.name}</td>
+                      <td className="p-3 font-mono text-slate-600">{c.phone}</td>
+                      <td className="p-3 font-semibold text-sky-700">{c.search}</td>
+                      <td className="p-3 text-slate-700">{c.budget}</td>
+                      <td className="p-3">
+                        <span
+                          className={`px-2.5 py-1 text-[10px] font-bold rounded-full ${
+                            c.status.includes('MATCHED') ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+                          }`}
+                        >
+                          {c.status}
+                        </span>
+                      </td>
+                      <td className="p-3 text-right">
+                        <a
+                          href={`tel:${c.phone}`}
+                          onClick={() => showToast(`Calling ${c.name}...`)}
+                          className="px-2.5 py-1 bg-sky-600 text-white rounded-lg text-[11px] font-bold"
+                        >
+                          Call
+                        </a>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: INVENTORY */}
+        {activeTab === 'INVENTORY' && (
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-slate-900 text-base">Vehicle Inventory Listing</h3>
+              <button
+                onClick={() => setIsAddVehicleOpen(true)}
+                className="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold rounded-xl shadow"
+              >
+                + Add New Vehicle
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {inventory.map((v) => (
+                <div key={v.id} className="p-4 border border-slate-200 rounded-2xl flex items-center justify-between hover:shadow-md transition">
+                  <div className="space-y-1">
+                    <div className="flex items-center space-x-2">
+                      <span className="px-2 py-0.5 bg-slate-900 text-white font-mono text-[10px] font-bold rounded">
+                        #{v.stockNumber}
+                      </span>
+                      <h4 className="font-bold text-slate-900 text-base">{v.year} {v.make} {v.model}</h4>
+                    </div>
+                    <p className="text-xs text-slate-500">{v.variant} • {v.fuel.toUpperCase()} • {v.transmission.toUpperCase()} • {v.km.toLocaleString()} km</p>
+                    <p className="text-sm font-black text-emerald-600">₹{(v.price / 100000).toFixed(2)} Lakhs</p>
+                  </div>
+
+                  <div className="flex flex-col items-end space-y-2">
+                    <span
+                      className={`px-2.5 py-1 text-[10px] font-bold rounded-full ${
+                        v.status === 'AVAILABLE' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                      }`}
+                    >
+                      {v.status}
+                    </span>
+                    <button
+                      onClick={() => toggleVehicleStatus(v.id)}
+                      className="text-[11px] font-bold text-slate-600 hover:text-slate-900 underline"
+                    >
+                      Mark {v.status === 'AVAILABLE' ? 'Reserved' : 'Available'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: FOLLOWUPS */}
+        {activeTab === 'FOLLOWUPS' && (
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+            <h3 className="font-bold text-slate-900 text-base">Sales Follow-up Workflow</h3>
+            <div className="space-y-3">
+              {followups.map((f) => (
+                <div key={f.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
+                  <div>
+                    <h4 className="font-bold text-slate-900 text-sm">{f.customer} ({f.phone})</h4>
+                    <p className="text-xs text-slate-600">{f.action}</p>
+                    <span className="text-[10px] text-amber-700 font-mono">Due: {f.due}</span>
+                  </div>
+                  {f.status === 'PENDING' ? (
+                    <button
+                      onClick={() => completeFollowup(f.id)}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow"
+                    >
+                      Mark Done
+                    </button>
+                  ) : (
+                    <span className="text-xs font-bold text-emerald-600 flex items-center">
+                      <CheckCircle className="w-4 h-4 mr-1" /> Completed
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* MODAL: Add Vehicle */}
+      {isAddVehicleOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="font-bold text-slate-900 text-lg">Add Vehicle to Inventory</h3>
+              <button onClick={() => setIsAddVehicleOpen(false)} className="text-slate-400 hover:text-slate-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddVehicle} className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Make *</label>
+                  <input
+                    type="text"
+                    required
+                    value={make}
+                    onChange={(e) => setMake(e.target.value)}
+                    placeholder="Hyundai / Honda"
+                    className="w-full p-2.5 border border-slate-300 rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Model *</label>
+                  <input
+                    type="text"
+                    required
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                    placeholder="Creta / City"
+                    className="w-full p-2.5 border border-slate-300 rounded-xl"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Variant</label>
+                  <input
+                    type="text"
+                    value={variant}
+                    onChange={(e) => setVariant(e.target.value)}
+                    placeholder="SX / VX"
+                    className="w-full p-2.5 border border-slate-300 rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Stock Number</label>
+                  <input
+                    type="text"
+                    value={stockNumber}
+                    onChange={(e) => setStockNumber(e.target.value)}
+                    placeholder="Auto-generated if empty"
+                    className="w-full p-2.5 border border-slate-300 rounded-xl font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Manufacturing Year *</label>
+                  <input
+                    type="number"
+                    required
+                    value={year}
+                    onChange={(e) => setYear(Number(e.target.value))}
+                    className="w-full p-2.5 border border-slate-300 rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Selling Price (₹) *</label>
+                  <input
+                    type="number"
+                    required
+                    value={price}
+                    onChange={(e) => setPrice(Number(e.target.value))}
+                    className="w-full p-2.5 border border-slate-300 rounded-xl"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Fuel Type</label>
+                  <select
+                    value={fuel}
+                    onChange={(e) => setFuel(e.target.value)}
+                    className="w-full p-2.5 border border-slate-300 rounded-xl bg-white"
+                  >
+                    <option value="petrol">Petrol</option>
+                    <option value="diesel">Diesel</option>
+                    <option value="electric">Electric</option>
+                    <option value="cng">CNG</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Transmission</label>
+                  <select
+                    value={transmission}
+                    onChange={(e) => setTransmission(e.target.value)}
+                    className="w-full p-2.5 border border-slate-300 rounded-xl bg-white"
+                  >
+                    <option value="automatic">Automatic</option>
+                    <option value="manual">Manual</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Kilometers (KM)</label>
+                  <input
+                    type="number"
+                    value={kilometers}
+                    onChange={(e) => setKilometers(Number(e.target.value))}
+                    className="w-full p-2.5 border border-slate-300 rounded-xl"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-600 font-semibold mb-1">Description / Condition</label>
+                <textarea
+                  rows={2}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="w-full p-2.5 border border-slate-300 rounded-xl text-xs"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-xl shadow transition"
+              >
+                + Add to Stock Inventory
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
